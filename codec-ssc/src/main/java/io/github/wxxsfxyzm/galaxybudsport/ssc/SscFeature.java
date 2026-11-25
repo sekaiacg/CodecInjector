@@ -32,6 +32,9 @@ public final class SscFeature implements CodecFeature {
     static final CodecInfo CODEC = new CodecInfo(18, 0x00000001030075ffL, "SSC");
     private static final String TAG = "SscPort";
     private static volatile int qualityMode;
+    // The Buds manager's last 360 audio switch, reapplied when an SSC stream is configured: the
+    // spatial stage is shared with other codecs (AirPods choose their own).
+    private static volatile Boolean budsSpatial;
 
     @Override public CodecInfo codec() {
         return CODEC;
@@ -67,10 +70,17 @@ public final class SscFeature implements CodecFeature {
                     Log.w(TAG, "stage=buds_spatial rejected_sender=" + getSentFromPackage());
                     return;
                 }
-                NativeBridge.setSpatial(intent.getBooleanExtra(BudsSettingsBridge.EXTRA_ENABLED, true));
+                budsSpatial = intent.getBooleanExtra(BudsSettingsBridge.EXTRA_ENABLED, true);
+                NativeBridge.setSpatial(budsSpatial);
             }
         }, new IntentFilter(BudsSettingsBridge.ACTION_SPATIAL), null, host.handler,
                 Context.RECEIVER_EXPORTED);
+        host.addCodecListener((device, status) -> {
+            Boolean spatial = budsSpatial;
+            if (spatial != null && CODEC.matches(status.getCodecConfig())) {
+                host.handler.post(() -> NativeBridge.setSpatial(spatial));
+            }
+        });
         registerUhq(host);
         registerQuality(host);
         PoseLink.serve(host.context, host.handler, NativeBridge::setYaw);

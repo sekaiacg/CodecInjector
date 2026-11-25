@@ -20,6 +20,9 @@ phones running HyperOS 4 with Galaxy Buds, as a software encoder in the Bluetoot
     drive our implementation. UHQ is stored per device.
   - Android Settings lists SSC in developer options, adds an SSC playback quality setting, and labels
     the codec on the device details page; AAC-ELD is listed and labelled the same way.
+  - HyperOS' AirPods page: the system spatial audio switch is replaced by a drop-down for ours
+    (off, fixed, head tracking; per device), and the AAC switch is removed (switching it with
+    AAC-ELD active leaves the stream silent).
 
 ## Supported devices
 

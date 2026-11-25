@@ -190,3 +190,12 @@ All actions are prefixed `io.github.wxxsfxyzm.galaxybudsport.action.`. Identity 
   queue flush on suspend) is dropped.
 - **Recovery.** `feeding_reset` (stream start after suspend) reopens the encoder and restarts the
   sequence: AAC-ELD predicts across frames, so the decoder only recovers from a fresh encoder.
+- **AirPods page** (`AirPodsSettingsBridge`). HyperOS' AirPods page is
+  `plugin.settings.java.airpods.MiuiAirpodsFragment` in a Qigsaw split; its classes are hooked once
+  the split's `SplitDexClassLoader` is created. `initSpatialAudio` hides the system `SpatialAudio`
+  switch and adds a `miuix.preference.DropDownPreference` (off / fixed / head tracking), stored per
+  device in Settings and sent to the Bluetooth process (`AIRPODS_SPATIAL`, sender-checked), which
+  applies it when that device's AAC-ELD stream is configured. `updateSpatialAudio` and
+  `AirPodsCodec.addPreferencesForSpecialCodec` (the AAC switch) are no-ops. Head tracking renders
+  facing forward until AirPods head tracking exists. The Buds manager's 360 audio switch is
+  reapplied when an SSC stream is configured, since the spatial stage is shared.
