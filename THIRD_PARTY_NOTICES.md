@@ -34,7 +34,8 @@ for the head yaw and pitch. Android Open Source Project, Apache License 2.0
 
 The AirPods AACP and motion protocol facts (packet framing, the sensor setup, service discovery and
 subscription, the motion report layout) come from the published research of LibrePods
-(<https://github.com/librepods-org/librepods>), HyperPods-X, aap-head-tracker and HeadTracker. The
+(<https://github.com/librepods-org/librepods>),
+[HyperPods-X](https://github.com/YeFeng233/HyperPods-X), aap-head-tracker and HeadTracker. The
 implementation in `codec-aeld` is independent; none of their code is included.
 
 ## Distributed in the built APK

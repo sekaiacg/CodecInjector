@@ -135,8 +135,9 @@ See [docs/architecture.md](docs/architecture.md) and [docs/verification.md](docs
 ## Acknowledgements
 
 - The AirPods AACP and motion protocol facts come from the research of
-  [LibrePods](https://github.com/librepods-org/librepods), HyperPods-X, aap-head-tracker and
-  HeadTracker. This project's implementation is its own.
+  [LibrePods](https://github.com/librepods-org/librepods),
+  [HyperPods-X](https://github.com/YeFeng233/HyperPods-X), aap-head-tracker and HeadTracker.
+  This project's implementation is its own.
 - The recentering logic follows AOSP's `libheadtracking` (Apache License 2.0); see
   [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
