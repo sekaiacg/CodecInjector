@@ -1,0 +1,14 @@
+// Codec-independent core: Java runtime (PortRuntime, BluetoothHost, codec types, Settings codec list)
+// and native sources (src/main/cpp, built into the app's native library by app/src/main/cpp).
+plugins { id "com.android.library" }
+
+android {
+    namespace "io.github.wxxsfxyzm.galaxybudsport.core"
+    compileSdk 37
+    defaultConfig { minSdk 37 }
+}
+
+dependencies {
+    compileOnly "io.github.libxposed:api:102.0.0"
+    compileOnly project(":hidden-api")
+}

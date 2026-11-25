@@ -1,0 +1,15 @@
+// Apple AAC-ELD for AirPods: Java feature and native codec plugin (src/main/cpp, built into the
+// app's native library by app/src/main/cpp).
+plugins { id "com.android.library" }
+
+android {
+    namespace "io.github.wxxsfxyzm.galaxybudsport.aeld"
+    compileSdk 37
+    defaultConfig { minSdk 37 }
+}
+
+dependencies {
+    api project(":core")
+    compileOnly "io.github.libxposed:api:102.0.0"
+    compileOnly project(":hidden-api")
+}

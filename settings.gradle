@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "SscPortLsp"
-include ":app", ":hidden-api"
+rootProject.name = "GalaxyBudsPort"
+include ":app", ":core", ":codec-ssc", ":codec-aeld", ":hidden-api"

@@ -4,13 +4,13 @@
  audio HAL (A2DP software session, PCM 48/96 kHz, packed 24-bit)
         │ read callback
         ▼
- Bluetooth process ── libsscport.so ──────────────────────────────────────────────┐
+ Bluetooth process ── libgalaxybudsport.so ──────────────────────────────────────┐
  │  SSC encoder interface (ssc_interface)                                          │
  │    Source/Frame: 864 samples per channel → Q8.23                                │
  │    DolbyHalStage ──FMQ──► audio HAL process: Dolby Spatializer (BINAURAL, A2DP) │
  │    ssc_encode (libScalable_Encoder.so) at BitrateLadder bitrate                 │
  │    Packetizer → stock enqueue → AVDTP                                           │
- │  Java (SscPortModule): codec type, UHQ per device, quality mode, pose sink      │
+ │  Java (PortRuntime + SscFeature): codec types, UHQ per device, quality, pose   │
  └─────────────────────────────────────────────────────────────────────────────────┘
         ▲ yaw (Binder, oneway)                ▲ broadcasts (sender-checked)
  Galaxy Buds manager process                  Settings process
@@ -22,15 +22,20 @@
 
 ## Bluetooth stack (native)
 
-`module.cpp` is loaded by LSPosed in `com.android.bluetooth`. When `libbluetooth_jni.so` is
+The project is split into `:core` (stack hooks, codec plugin registry, Dolby stage, Java runtime),
+`:codec-ssc` (SSC and Galaxy Buds) and `:codec-aeld` (AAC-ELD for AirPods); `:app` links them into
+one LSPosed module. Each codec is a `port::CodecPlugin` (`core/src/main/cpp/codec_plugin.h`): its
+index, codec ID, codec table, capability, matching and encoder; the app lists them in `codecs.cpp`.
+
+`core/src/main/cpp/stack.cpp` is loaded by LSPosed in `com.android.bluetooth`. When `libbluetooth_jni.so` is
 loaded, it resolves the following symbols. It searches the dynamic and static symbol tables, then
 the xz-compressed `.gnu_debugdata` section (`elf_symbols.cpp`, using xz-embedded):
 
 | Symbol | Purpose |
 |---|---|
-| `A2dpCodecs::init`, `A2dpCodecs::isSupportedCodec`, `provider::supports_codec` | register index 18 and keep it on the software path |
+| `A2dpCodecs::init`, `A2dpCodecs::isSupportedCodec`, `provider::supports_codec` | register the plugin codecs (SSC 18, AAC-ELD 17) and keep them on the software path |
 | `A2dpCodecConfigExt::A2dpCodecConfigExt`, `A2dpCodecConfig` C2/D2, `operator delete(void*, size_t)` | construct the SSC codec object |
-| `A2DP_VendorSourceCodecIndex`, `A2DP_IsVendorSourceCodecValid`, `A2DP_VendorInitCodecConfig`, `A2DP_VendorGetEncoderInterface`, `A2DP_BuildCodecHeader`, `A2DP_GetPacketTimestamp` | vendor codec dispatch (`ssc_vendor_dispatch`) |
+| `A2DP_VendorSourceCodecIndex`, `A2DP_IsVendorSourceCodecValid`, `A2DP_VendorInitCodecConfig`, `A2DP_VendorGetEncoderInterface`, `A2DP_BuildCodecHeader`, `A2DP_GetPacketTimestamp` | vendor codec dispatch (`vendor_dispatch`, routed to the plugin whose codec information matches) |
 | `osi_malloc` | packet buffers |
 
 A missing symbol only skips its hook.
@@ -147,7 +152,7 @@ process. It opens it as stereo float at the session rate, with 864 frames.
 | `REQUEST_POSE_SINK` / `POSE_SINK` (Binder `sink`) | Buds manager ↔ Bluetooth | caller UID on each transaction |
 | `SSC_QUALITY_SET` / `SSC_QUALITY_QUERY` (`mode`) | Settings → Bluetooth | sender package |
 | `SSC_QUALITY_STATE` (`mode`) | Bluetooth → Settings | sender package |
-| `SELECT_SSC`, `SELECT_AAC`, `SPATIAL_ON`, `SPATIAL_OFF` | adb → Bluetooth | `android.permission.DUMP` |
+| `SELECT_CODEC --ei index <n>`, `SPATIAL_ON`, `SPATIAL_OFF` | adb → Bluetooth | `android.permission.DUMP` |
 
 All actions are prefixed `io.github.wxxsfxyzm.galaxybudsport.action.`. Identity comes from
 `BroadcastOptions.setShareIdentityEnabled` and `BroadcastReceiver.getSentFromPackage`.
@@ -160,3 +165,28 @@ All actions are prefixed `io.github.wxxsfxyzm.galaxybudsport.action.`. Identity 
   not match.
 - Flipping the switch renegotiates the active SSC stream at 96 or 48 kHz through
   `setCodecConfigPreference`.
+
+## AAC-ELD for AirPods (`codec-aeld`)
+
+- **Index and identity.** Index 17, one of the free source indexes on this stack (10, 11 and 15–17
+  are `UNKNOWN` in `A2DP_CodecIndexStr`; indexes above 20 are sink codecs). Codec ID
+  `0x0000008001004cff` (`0xff | vendor << 8 | codec << 24`), name "AAC-ELD".
+- **Codec information** (`aeld_codec_info`). `10 00 ff 4c 00 00 00 01 80`, then object type
+  `0x0080` (AAC-ELD), sample rate / channels (`0x008` = 48 kHz in the high 12 bits, `0x4` stereo,
+  `0x8` mono), a reserved byte and VBR flag + bitrate (24 bits, big endian). The local capability
+  matches Apple's source: 48 kHz, mono and stereo, VBR, 256 kbps. The configuration is always
+  48 kHz stereo; other peer configurations are refused.
+- **Encoder** (`aeld_fdk`). The FDK AAC encoder inside `libbluetooth_jni.so` (`aacEncOpen`,
+  `aacEncoder_SetParam`, `aacEncEncode`, `aacEncClose`, resolved from MiniDebugInfo): AOT 39, 48 kHz
+  stereo, 480-sample frames, CBR 265 kbps, no SBR, no afterburner, raw AUs. PCM is 16-bit. 512-sample
+  frames make AirPods stop after about 0.1 s.
+- **Pacing** (`aeld_source`). A 10 ms timer; each tick encodes the 10 ms frames that elapsed (at most
+  eight), and a gap over 200 ms restarts with one frame rather than a burst. Before encoding, the
+  frame goes through the shared Dolby stage (16-bit to Q8.23 and back), facing forward.
+- **Packets** (`aeld_packet`). Up to three AUs per RTP packet, each behind a 4-byte header
+  (`0xb` + 12-bit sequence, `0x1` + 12-bit length; AUs over `0x7ff` bytes are refused); the
+  sequence starts at 1, the RTP timestamp advances 480 per AU and the marker bit is used. With an
+  AirPods MTU of 1011 (999 payload bytes) a packet holds two AUs. A packet the stack refuses (its
+  queue flush on suspend) is dropped.
+- **Recovery.** `feeding_reset` (stream start after suspend) reopens the encoder and restarts the
+  sequence: AAC-ELD predicts across frames, so the decoder only recovers from a fresh encoder.

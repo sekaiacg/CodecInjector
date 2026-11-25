@@ -1,0 +1,17 @@
+// Samsung Seamless Codec with Galaxy Buds: Java feature and native codec plugin (src/main/cpp, built
+// into the app's native library by app/src/main/cpp).
+plugins { id "com.android.library" }
+
+android {
+    namespace "io.github.wxxsfxyzm.galaxybudsport.ssc"
+    compileSdk 37
+    defaultConfig { minSdk 37 }
+}
+
+dependencies {
+    api project(":core")
+    compileOnly "io.github.libxposed:api:102.0.0"
+    compileOnly project(":hidden-api")
+    implementation "org.luckypray:dexkit:2.3.0"
+    testImplementation "junit:junit:4.13.2"
+}

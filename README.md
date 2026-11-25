@@ -10,11 +10,16 @@ phones running HyperOS 4 with Galaxy Buds, as a software encoder in the Bluetoot
   effect HAL, before encoding.
 - **Head tracking.** Galaxy Buds pose data is read from the Galaxy Buds manager's own SPP session
   and turned into a head yaw for the spatializer.
+- **AAC-ELD for AirPods.** Apple's AAC-ELD (vendor `0x004c`, codec `0x8001`) is registered as
+  vendor codec index 17 with codec ID `0x0000008001004cff`, using the profile Apple sources send
+  (48 kHz stereo, 480-sample frames, 265 kbps CBR). It is encoded with the FDK AAC encoder already
+  in the Bluetooth stack and goes through the same Dolby Spatializer stage. AirPods head tracking is
+  not implemented yet, so the spatial image stays facing forward.
 - **Settings integration:**
   - The Galaxy Buds manager's 360 audio, head tracking and UHQ ("advanced sound quality") switches
     drive our implementation. UHQ is stored per device.
   - Android Settings lists SSC in developer options, adds an SSC playback quality setting, and labels
-    the codec on the device details page.
+    the codec on the device details page; AAC-ELD is listed and labelled the same way.
 
 ## Supported devices
 
@@ -67,10 +72,16 @@ re-attaches head tracking by itself.
 ## Layout
 
 ```
-app/src/main/cpp/         native module (libsscport.so): Bluetooth stack hooks, SSC codec, encoder
-                          pipeline, Dolby HAL stage, runtime symbol resolution
-app/src/main/java/        LSPosed entry (SscPortModule) and the Buds / Settings bridges
-app/src/test/             Java unit tests (head yaw, Buds protocol) and native host tests
+core/                     codec-independent core
+  src/main/cpp/           Bluetooth stack hooks, codec plugin registry, Dolby HAL stage, HAL
+                          session restart, runtime symbol resolution
+  src/main/java/          PortRuntime, BluetoothHost, framework codec types, Settings codec list
+codec-ssc/                SSC with Galaxy Buds: codec plugin, encoder pipeline, Buds manager and
+                          Settings quality bridges, head tracking
+codec-aeld/               AAC-ELD for AirPods: codec plugin, FDK encoder, AU/RTP packetizer
+app/                      LSPosed entry (GalaxyBudsPortModule) and the native library
+                          (libgalaxybudsport.so) linking the core and the codecs
+scripts/host-tests.sh     native host tests of all modules (src/test/cpp)
 hidden-api/               compile-only stubs of hidden framework APIs (not packaged)
 tools/dolby_hal_smoke/    standalone Dolby Spatializer HAL client for on-device checks
 third_party/              xz-embedded, AOSP audio effect AIDL NDK code (see third_party/README.md)

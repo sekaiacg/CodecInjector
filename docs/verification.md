@@ -26,6 +26,7 @@ adb logcat -s SscPort SscPortBuds SscPortSettings
 | `SscPort stage=module event=installed` | native hooks installed in the Bluetooth process |
 | `stage=module event=symbol_missing` / `hook_failed` | a symbol was not found in this Bluetooth build |
 | `event=ssc_encoder_init a=<mtu> b=<48000\|96000>`, `event=dolby_started` | an SSC session started, and its rate |
+| `event=aeld_encoder_init a=<mtu> b=<payload capacity>`, `event=aeld_enqueue`, `event=aeld_fault` | an AAC-ELD session started, its first packets, a stopped stream |
 | `event=ssc_bitrate a=<bps>` | the encoder bitrate changed (adaptive level or fixed mode) |
 | `event=uhq_preferred`, `event=quality_mode` | the per-connection UHQ preference and the bitrate mode |
 | `stage=dolby event=stats` | per 500 frames: `timeouts`, `write_full` and `bad` should be 0; `max_wait_us` stays well below a frame |
