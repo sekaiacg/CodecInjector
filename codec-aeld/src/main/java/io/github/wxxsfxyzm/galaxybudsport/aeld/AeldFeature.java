@@ -1,6 +1,8 @@
 package io.github.wxxsfxyzm.galaxybudsport.aeld;
 
+import android.app.BroadcastOptions;
 import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothDevice;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -28,6 +30,16 @@ public final class AeldFeature implements CodecFeature {
         return CODEC;
     }
 
+    @Override public java.util.List<String> poseSources() {
+        return java.util.List.of(AirPodsChannelTap.PROCESS);
+    }
+
+    @Override public void onProcess(XposedInterface xposed, String processName) {
+        if (AirPodsChannelTap.PROCESS.equals(processName)) {
+            AirPodsChannelTap.install(xposed, new AirPodsPose.Tracker());
+        }
+    }
+
     @Override public void onSettings(XposedInterface xposed, ClassLoader loader) {
         try {
             AirPodsSettingsBridge.install(xposed, loader);
@@ -51,9 +63,10 @@ public final class AeldFeature implements CodecFeature {
                         AirPodsSettingsBridge.MODE_DEFAULT);
                 prefs.edit().putInt(AirPodsSettingsBridge.key(address), mode).apply();
                 try {
-                    if (address.equalsIgnoreCase(host.activeDevice().getAddress())
-                            && CODEC.matches(host.codecStatus(host.activeDevice()).getCodecConfig())) {
-                        apply(mode);
+                    BluetoothDevice active = host.activeDevice();
+                    if (active != null && address.equalsIgnoreCase(active.getAddress())
+                            && CODEC.matches(host.codecStatus(active).getCodecConfig())) {
+                        apply(host.context, mode, active);
                     }
                 } catch (Exception error) {
                     Log.w(TAG, "stage=airpods_spatial active=" + error.getClass().getSimpleName());
@@ -65,14 +78,22 @@ public final class AeldFeature implements CodecFeature {
             if (!CODEC.matches(status.getCodecConfig())) return;
             int mode = prefs.getInt(AirPodsSettingsBridge.key(device.getAddress()),
                     AirPodsSettingsBridge.MODE_DEFAULT);
-            host.handler.post(() -> apply(mode));
+            host.handler.post(() -> apply(host.context, mode, device));
         });
     }
 
-    private static void apply(int mode) {
+    private static void apply(Context context, int mode, BluetoothDevice device) {
         NativeBridge.setSpatial(mode != AirPodsSettingsBridge.MODE_OFF);
-        // No AirPods head tracking yet: both modes face forward.
         NativeBridge.setYaw(0f);
+        NativeBridge.setPitch(0f);
+        // The tap in HyperOS' AirPods service runs the motion session over its AACP channel.
+        BroadcastOptions options = BroadcastOptions.makeBasic();
+        options.setShareIdentityEnabled(true);
+        context.sendBroadcast(new Intent(AirPodsChannelTap.ACTION_TRACKING)
+                .setPackage(AirPodsChannelTap.PROCESS)
+                .putExtra(AirPodsChannelTap.EXTRA_ADDRESS, device.getAddress())
+                .putExtra(AirPodsChannelTap.EXTRA_ENABLED,
+                        mode == AirPodsSettingsBridge.MODE_HEAD_TRACKING), null, options.toBundle());
         Log.w(TAG, "stage=airpods_spatial mode=" + mode);
     }
 }

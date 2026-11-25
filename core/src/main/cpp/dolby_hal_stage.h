@@ -26,6 +26,8 @@ public:
     void set_enabled(bool enabled) { __atomic_store_n(&enabled_, enabled, __ATOMIC_RELAXED); }
     // Head yaw in radians, AOSP rotation-vector convention (positive = head turned left).
     void set_yaw(float radians);
+    // Head pitch in radians (positive = looking up), applied after the yaw.
+    void set_pitch(float radians);
     bool running() const;
 
 private:
@@ -34,6 +36,7 @@ private:
     std::unique_ptr<Session> session_;
     bool enabled_ = true;
     uint32_t yaw_bits_ = 0;
+    uint32_t pitch_bits_ = 0;
 };
 
 }  // namespace port

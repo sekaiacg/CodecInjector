@@ -231,6 +231,12 @@ void DolbyHalStage::set_yaw(float radians) {
     __atomic_store_n(&yaw_bits_, bits, __ATOMIC_RELAXED);
 }
 
+void DolbyHalStage::set_pitch(float radians) {
+    uint32_t bits;
+    memcpy(&bits, &radians, sizeof bits);
+    __atomic_store_n(&pitch_bits_, bits, __ATOMIC_RELAXED);
+}
+
 bool DolbyHalStage::start(uint32_t sample_rate, size_t frames) {
     stop();
     auto s = std::make_unique<Session>();
@@ -289,22 +295,34 @@ bool DolbyHalStage::start(uint32_t sample_rate, size_t frames) {
 
     Session* raw = s.get();
     const uint32_t* yawBits = &yaw_bits_;
-    s->poser = std::thread([raw, yawBits] {
+    const uint32_t* pitchBits = &pitch_bits_;
+    s->poser = std::thread([raw, yawBits, pitchBits] {
         float sent = NAN;
+        float sentPitch = NAN;
         std::unique_lock<std::mutex> lock(raw->poseMutex);
         while (!raw->quit) {
             raw->poseCv.wait_for(lock, std::chrono::milliseconds(20));
             if (raw->quit) break;
             const float yaw = fromBits(__atomic_load_n(yawBits, __ATOMIC_RELAXED));
-            if (fabsf(yaw - sent) < 0.002f) continue;
+            const float pitch = fromBits(__atomic_load_n(pitchBits, __ATOMIC_RELAXED));
+            if (fabsf(yaw - sent) < 0.002f && fabsf(pitch - sentPitch) < 0.002f) continue;
             lock.unlock();
             timespec t0;
             clock_gettime(CLOCK_MONOTONIC, &t0);
+            // Head frame: x right, y forward, z up. Rotation Rz(yaw) * Rx(pitch) as a rotation
+            // vector.
+            const float cy = cosf(yaw / 2), sy = sinf(yaw / 2);
+            const float cp = cosf(pitch / 2), sp = sinf(pitch / 2);
+            const float qw = cy * cp, qx = cy * sp, qy = sy * sp, qz = sy * cp;
+            const float n = sqrtf(qx * qx + qy * qy + qz * qz);
+            const float scale = n > 1e-6f ? 2 * atan2f(n, qw) / n : 2.0f;
             HeadTracking::SensorData data = HeadTracking::SensorData::make<
-                HeadTracking::SensorData::headToStage>(std::array<float, 6>{0, 0, 0, 0, 0, yaw});
+                HeadTracking::SensorData::headToStage>(std::array<float, 6>{
+                    0, 0, 0, qx * scale, qy * scale, qz * scale});
             if (raw->effect->setParameter(spatializer(
                     Spatializer::make<Spatializer::headTrackingSensorData>(data))).isOk()) {
                 sent = yaw;
+                sentPitch = pitch;
             }
             const long us = elapsedUs(t0);
             raw->poseSets++;

@@ -182,7 +182,7 @@ All actions are prefixed `io.github.wxxsfxyzm.galaxybudsport.action.`. Identity 
   frames make AirPods stop after about 0.1 s.
 - **Pacing** (`aeld_source`). A 10 ms timer; each tick encodes the 10 ms frames that elapsed (at most
   eight), and a gap over 200 ms restarts with one frame rather than a burst. Before encoding, the
-  frame goes through the shared Dolby stage (16-bit to Q8.23 and back), facing forward.
+  frame goes through the shared Dolby stage (16-bit to Q8.23 and back).
 - **Packets** (`aeld_packet`). Up to three AUs per RTP packet, each behind a 4-byte header
   (`0xb` + 12-bit sequence, `0x1` + 12-bit length; AUs over `0x7ff` bytes are refused); the
   sequence starts at 1, the RTP timestamp advances 480 per AU and the marker bit is used. With an
@@ -196,6 +196,37 @@ All actions are prefixed `io.github.wxxsfxyzm.galaxybudsport.action.`. Identity 
   switch and adds a `miuix.preference.DropDownPreference` (off / fixed / head tracking), stored per
   device in Settings and sent to the Bluetooth process (`AIRPODS_SPATIAL`, sender-checked), which
   applies it when that device's AAC-ELD stream is configured. `updateSpatialAudio` and
-  `AirPodsCodec.addPreferencesForSpecialCodec` (the AAC switch) are no-ops. Head tracking renders
-  facing forward until AirPods head tracking exists. The Buds manager's 360 audio switch is
-  reapplied when an SSC stream is configured, since the spatial stage is shared.
+  `AirPodsCodec.addPreferencesForSpecialCodec` (the AAC switch) are no-ops. In head tracking mode the
+  Bluetooth process asks the AirPods tap for motion (`AIRPODS_TRACKING`). The Buds manager's 360
+  audio switch is reapplied when an SSC stream is configured, since the spatial stage is shared.
+- **AirPods motion** (`AirPodsChannelTap`, `AacpProtocol`, in `com.xiaomi.bluetooth`). AirPods serve
+  one AACP channel (L2CAP PSM 0x1001), the most recently opened, and HyperOS' AirCore opens its own
+  about 2 s after HFP connects; a second channel of ours would take the AirPods from HyperOS. So
+  HyperOS' channel is tapped: its socket streams are wrapped (a BR/EDR L2CAP socket counts as AACP
+  once AACP traffic is read; the PSM getter is a blocked hidden API), and 3 s after it opens the
+  sensor session runs over its output: sensor interface setup, service query, the motion service
+  found by name (`devmotion6`; service 16 on AirPods Pro 3), control session ownership only if the
+  subscription gets no reports, then a 20 ms subscription. Sensor frames (opcode 0x17) and the
+  replies to the setup are taken out of what HyperOS reads; its own features keep working.
+
+## Head tracking (`core`: `HeadYaw`, `HeadTracker`, `PoseLink`)
+
+The process that reads the earbuds (Buds manager, `com.xiaomi.bluetooth`) turns each orientation
+sample into a head yaw and pitch and sends them to the Bluetooth process over a Binder sink
+(`PoseLink`, sender-checked by package and calling UID), which sets the Dolby `headToStage` rotation
+(Rz(yaw) * Rx(pitch), AOSP head frame: x right, y forward, z up).
+
+- **Yaw**: the twist about world Z of the rotation since the reference. The sign depends on the
+  earbud frame: Galaxy Buds -1 (and the opposite for the other role), AirPods +1.
+- **Pitch**: the elevation against gravity of the head's forward axis in the sensor frame, measured
+  from captures of turns, nods and tilts (the axis is perpendicular to the turn and nod axes, so it
+  is horizontal for a level head): AirPods Pro 3 (-0.82, 0.54, 0.04), Galaxy Buds role true
+  (0.30, -0.88, -0.37). Absolute, not recentered: the stage stays level in the room.
+- **Galaxy Buds role false**: its world frame is not gravity aligned (its nod axis is 20 degrees off
+  the horizontal, so nods leaked into the world-Z twist), so yaw and pitch are twists of the
+  sensor-frame rotation about the measured turn (-0.93, -0.35, 0) and nod (0.03, -0.06, 1.0) axes;
+  its pitch is relative and recentered.
+- **Recentering** ports AOSP's head tracking processor (libheadtracking): the head is still when
+  every orientation of the last 6 s is within 10.5 degrees of the latest (full 3D); then the current
+  heading becomes forward and the output glides there at up to 0.8 rad/s, advanced every 20 ms by
+  `HeadTracker` between slow samples (the Buds report about once a second while still).

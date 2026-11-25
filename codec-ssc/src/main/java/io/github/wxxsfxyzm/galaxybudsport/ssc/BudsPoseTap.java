@@ -6,6 +6,7 @@ import android.os.Handler;
 import android.os.HandlerThread;
 import android.util.Log;
 import io.github.libxposed.api.XposedInterface;
+import io.github.wxxsfxyzm.galaxybudsport.core.HeadTracker;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -106,7 +107,16 @@ final class BudsPoseTap {
         private TappedOutput output;
         private boolean attachScheduled;
         private boolean attached;
-        private final HeadYaw headYaw = new HeadYaw();
+        // Role == true: world frame gravity aligned; head forward in the sensor frame from a capture
+        // of turns, nods and tilts (absolute pitch).
+        static final double[] FORWARD_ROLE_TRUE = {0.30, -0.88, -0.37};
+        // Role == false: its world frame is tilted (nods are 20 degrees off the horizontal and leak
+        // into the world-Z twist), so it uses the measured head axes in its sensor frame: turn left
+        // (-0.93, -0.35, 0) and look up (0.03, -0.06, 1.0).
+        static final double[] UP_ROLE_FALSE = {-0.93, -0.35, 0.0};
+        static final double[] RIGHT_ROLE_FALSE = {0.03, -0.06, 1.0};
+        private final HeadTracker tracker = new HeadTracker(-1.0, null, FORWARD_ROLE_TRUE)
+                .useBodyAxes(false, UP_ROLE_FALSE, RIGHT_ROLE_FALSE);
         private long lastYawLogMs;
         private long samples;
         private long lastLogMs;
@@ -141,8 +151,7 @@ final class BudsPoseTap {
                     return;
                 }
                 attached = true;
-                headYaw.reset();
-                PoseLink.request();
+                tracker.reset();
                 Log.w(TAG, "stage=buds_tap event=attach_sent");
                 handler().postDelayed(this::keepAlive, KEEP_ALIVE_MS);
             } else if (!headTracking && attached) {
@@ -150,7 +159,7 @@ final class BudsPoseTap {
                 send(BudsSpatialProtocol.encodeRequest(BudsSpatialProtocol.SPATIAL_AUDIO_CONTROL,
                         BudsSpatialProtocol.CONTROL_DETACH));
                 send(BudsSpatialProtocol.encodeRequest(BudsSpatialProtocol.SET_SPATIAL_AUDIO, 0));
-                PoseLink.send(0f);
+                tracker.reset();
                 Log.w(TAG, "stage=buds_tap event=detach_sent");
             }
         }
@@ -202,14 +211,14 @@ final class BudsPoseTap {
 
         private void pose(BudsSpatialProtocol.QuaternionSample q) {
             if (!headTracking) return;
-            double yaw = headYaw.update(q.x, q.y, q.z, q.w, q.auxiliaryFlag, System.nanoTime());
-            PoseLink.send((float) yaw);
+            double yaw = tracker.sample(q.x, q.y, q.z, q.w, q.auxiliaryFlag,
+                    android.os.SystemClock.elapsedRealtimeNanos());
             long nowMs = System.currentTimeMillis();
             if (nowMs - lastYawLogMs >= 500) {
                 lastYawLogMs = nowMs;
                 Log.w(TAG, String.format(java.util.Locale.ROOT,
-                        "stage=buds_tap event=yaw deg=%.1f role=%b", Math.toDegrees(yaw),
-                        q.auxiliaryFlag));
+                        "stage=buds_tap event=yaw deg=%.1f pitch=%.1f role=%b", Math.toDegrees(yaw),
+                        Math.toDegrees(tracker.pitch()), q.auxiliaryFlag));
             }
             samples++;
             windowSamples++;

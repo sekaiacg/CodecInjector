@@ -10,6 +10,11 @@ import io.github.libxposed.api.XposedModuleInterface;
 public interface CodecFeature {
     CodecInfo codec();
 
+    /** Packages that send head yaw to the Bluetooth process through {@link PoseLink}. */
+    default java.util.List<String> poseSources() {
+        return java.util.List.of();
+    }
+
     /** Every process in scope, as the module is loaded into it. */
     default void onProcess(XposedInterface xposed, String processName) {
     }

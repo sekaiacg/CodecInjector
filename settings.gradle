@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "GalaxyBudsPort"
+rootProject.name = "CodecInjector"
 include ":app", ":core", ":codec-ssc", ":codec-aeld", ":hidden-api"

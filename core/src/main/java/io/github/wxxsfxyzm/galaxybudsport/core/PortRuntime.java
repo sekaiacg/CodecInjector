@@ -85,7 +85,15 @@ public final class PortRuntime {
                 }
                 BluetoothHost host = new BluetoothHost(module, context, handler, loader);
                 registerDebugControls(host);
-                for (CodecFeature feature : features) feature.onBluetooth(host);
+                java.util.Set<String> poseSources = new java.util.HashSet<>();
+                for (CodecFeature feature : features) {
+                    feature.onBluetooth(host);
+                    poseSources.addAll(feature.poseSources());
+                }
+                PoseLink.serve(context, handler, (yaw, pitch) -> {
+                    NativeBridge.setYaw(yaw);
+                    NativeBridge.setPitch(pitch);
+                }, poseSources);
                 Log.w(TAG, "stage=control registered=1");
             }
         });

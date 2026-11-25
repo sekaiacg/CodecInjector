@@ -22,6 +22,21 @@ Used to decompress the `.gnu_debugdata` (MiniDebugInfo) section for runtime symb
 The Apache License 2.0 text: <https://www.apache.org/licenses/LICENSE-2.0>. Copyright notices are kept
 in the files.
 
+### AOSP libheadtracking (ported logic)
+
+`core/src/main/java/.../core/HeadYaw.java` ports the recentering logic of AOSP's head tracking
+processor (`frameworks/av/media/libheadtracking`: StillnessDetector, PoseBias, PoseRateLimiter) and
+the parameters of `frameworks/av/services/audiopolicy/service/SpatializerPoseController.cpp` to Java,
+for the head yaw and pitch. Android Open Source Project, Apache License 2.0
+(<https://www.apache.org/licenses/LICENSE-2.0>).
+
+## Protocol research (no code included)
+
+The AirPods AACP and motion protocol facts (packet framing, the sensor setup, service discovery and
+subscription, the motion report layout) come from the published research of LibrePods
+(<https://github.com/librepods-org/librepods>), HyperPods-X, aap-head-tracker and HeadTracker. The
+implementation in `codec-aeld` is independent; none of their code is included.
+
 ## Distributed in the built APK
 
 ### DexKit

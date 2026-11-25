@@ -12,4 +12,5 @@ dependencies {
     api project(":core")
     compileOnly "io.github.libxposed:api:102.0.0"
     compileOnly project(":hidden-api")
+    testImplementation "junit:junit:4.13.2"
 }

@@ -40,6 +40,10 @@ public final class SscFeature implements CodecFeature {
         return CODEC;
     }
 
+    @Override public java.util.List<String> poseSources() {
+        return java.util.List.of(BUDS_MANAGER);
+    }
+
     @Override public void onProcess(XposedInterface xposed, String processName) {
         if (processName.startsWith(BUDS_MANAGER)) BudsPoseTap.install(xposed);
     }
@@ -83,7 +87,6 @@ public final class SscFeature implements CodecFeature {
         });
         registerUhq(host);
         registerQuality(host);
-        PoseLink.serve(host.context, host.handler, NativeBridge::setYaw);
     }
 
     /** Bitrate mode chosen in developer options; adaptive again on every new connection. */
