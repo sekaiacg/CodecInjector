@@ -1,0 +1,1 @@
+{ global: native_init; Java_io_github_wxxsfxyzm_galaxybudsport_SscPortModule_nativeSetSpatial; Java_io_github_wxxsfxyzm_galaxybudsport_SscPortModule_nativeSetYaw; Java_io_github_wxxsfxyzm_galaxybudsport_SscPortModule_nativeSetUhq; Java_io_github_wxxsfxyzm_galaxybudsport_SscPortModule_nativeSetQualityMode; local: *; };

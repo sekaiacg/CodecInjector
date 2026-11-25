@@ -1,0 +1,162 @@
+# Architecture
+
+```
+ audio HAL (A2DP software session, PCM 48/96 kHz, packed 24-bit)
+        │ read callback
+        ▼
+ Bluetooth process ── libsscport.so ──────────────────────────────────────────────┐
+ │  SSC encoder interface (ssc_interface)                                          │
+ │    Source/Frame: 864 samples per channel → Q8.23                                │
+ │    DolbyHalStage ──FMQ──► audio HAL process: Dolby Spatializer (BINAURAL, A2DP) │
+ │    ssc_encode (libScalable_Encoder.so) at BitrateLadder bitrate                 │
+ │    Packetizer → stock enqueue → AVDTP                                           │
+ │  Java (SscPortModule): codec type, UHQ per device, quality mode, pose sink      │
+ └─────────────────────────────────────────────────────────────────────────────────┘
+        ▲ yaw (Binder, oneway)                ▲ broadcasts (sender-checked)
+ Galaxy Buds manager process                  Settings process
+   BudsPoseTap: SMEP frames on the            SettingsCodecBridge: SSC in the codec list,
+   manager's own SPP socket → HeadYaw         device label
+   BudsSettingsBridge (DexKit): 360 audio,    SettingsQualityBridge: SSC playback quality
+   head tracking, UHQ switches
+```
+
+## Bluetooth stack (native)
+
+`module.cpp` is loaded by LSPosed in `com.android.bluetooth`. When `libbluetooth_jni.so` is
+loaded, it resolves the following symbols. It searches the dynamic and static symbol tables, then
+the xz-compressed `.gnu_debugdata` section (`elf_symbols.cpp`, using xz-embedded):
+
+| Symbol | Purpose |
+|---|---|
+| `A2dpCodecs::init`, `A2dpCodecs::isSupportedCodec`, `provider::supports_codec` | register index 18 and keep it on the software path |
+| `A2dpCodecConfigExt::A2dpCodecConfigExt`, `A2dpCodecConfig` C2/D2, `operator delete(void*, size_t)` | construct the SSC codec object |
+| `A2DP_VendorSourceCodecIndex`, `A2DP_IsVendorSourceCodecValid`, `A2DP_VendorInitCodecConfig`, `A2DP_VendorGetEncoderInterface`, `A2DP_BuildCodecHeader`, `A2DP_GetPacketTimestamp` | vendor codec dispatch (`ssc_vendor_dispatch`) |
+| `osi_malloc` | packet buffers |
+
+A missing symbol only skips its hook.
+
+### Codec information (`ssc_negotiation`, `ssc_codec_state`)
+
+The codec information element is `09 00 ff 75 00 00 00 03 01 <mode>`. Byte 9, following Samsung's
+`A2DP_ParseInfoSsc`:
+
+| Bits | Meaning |
+|---|---|
+| `0xf0` | sample-rate bits in capabilities (`0x10` 48 k, `0x20` 44.1 k) |
+| `0x08` | bitrate limitation |
+| `0x04` | ordinary SSC: 48 kHz, 24-bit |
+| `0x02` | SSC UHQ: 96 kHz |
+| `0x01` | reserved; UHQ is not selected when it is set |
+
+- Galaxy Buds advertise `0x3e`. The local SEP capability is `0x0c`.
+- Selection: 96 kHz when the framework explicitly requests 96 kHz, or when nothing is requested and
+  the device's UHQ switch is on. 48 kHz otherwise (Samsung's rule). The selected mode is
+  `0x02 | (peer & 0x08)` or `0x04 | (peer & 0x08)`.
+- A peer-chosen configuration is accepted as it is.
+
+### Encoder (`ssc_interface`, `ssc_frame`, `ssc_bitrate`, `ssc_packet`)
+
+- Samsung's parameters: `ssc_encoder_create(96000 | 44100, 2, 24)` (44100 is what Samsung passes
+  for 48 kHz SSC). Each frame is 864 samples per channel, so 18 ms at 48 kHz and 9 ms at 96 kHz.
+- PCM arrives as packed 24-bit (5184 bytes per frame) and is converted to Q8.23.
+- One frame per packet.
+- Bitrate levels 0/2/3 are UHQ 584/291/152 kbps and SSC 192/128/88 kbps.
+  - Samsung phones get the busy level from Bluetooth controller events. Here it follows the
+    transmit queue length that the stack reports every tick.
+  - A queue of 2 or more for 3 reports → level 2. A queue of 4 or more for 3 reports → level 3.
+  - A queue under 2 for 100 reports → one level back.
+  - Fixed modes from developer options pin a level. The mode resets to adaptive on every A2DP
+    connection.
+
+### Spatial audio (`dolby_hal_stage`)
+
+The Bluetooth process is a client of `android.hardware.audio.effect.IFactory/default`. It creates
+the device's Dolby Spatializer (Xiaomi implementation UUID
+`ccd4cf09-a79d-46c2-9aae-06a1698d6c8f`), which runs and passes its license check in the audio HAL
+process. It opens it as stereo float at the session rate, with 864 frames.
+
+- **Parameters:**
+  - device description `OUT_DEVICE` / `bt-a2dp` (without it the effect renders for the speaker);
+  - level `MULTICHANNEL`, mode `BINAURAL`;
+  - head tracking `FRAMEWORK_PROCESSED`, `RELATIVE_WORLD`.
+- **Data path:** status/input/output FMQs. The wake bits are `0x1 | 1 << 11`, as V2 effects wait on
+  `kEventFlagDataMqNotEmpty`.
+- **Pipelined:** each encoder frame submits the current block and outputs the previous one, which
+  adds one frame of latency. The HAL round trip (3–4 ms) is never on the critical path.
+- **Output:** scaled by 0.5, since Dolby's output reaches full scale.
+- **Head pose:** a separate thread sends `headTrackingSensorData` `headToStage {0,0,0,0,0,yaw}`
+  every 20 ms when the yaw has changed.
+- **Verified rates:** 48 kHz and 96 kHz (frequency response matches at the same absolute
+  frequencies, and content above 24 kHz is kept).
+
+## Galaxy Buds manager (`com.samsung.accessory.budsunitemgr`)
+
+- **`BudsPoseTap`**
+  - It hooks `BluetoothDevice.create*RfcommSocketToServiceRecord` for the Buds SPP UUID
+    `2e73a4ad-332d-41fc-90e2-16bef06523f2`, plus the socket's streams. This shares the manager's
+    session instead of competing for the port.
+  - It sends `SET_SPATIAL_AUDIO` (0x7c), then `SPATIAL_AUDIO_CONTROL` (0xc3) Attach, with KeepAlive
+    every 2 s.
+  - It decodes `SPATIAL_AUDIO_DATA` (0xc2) BudGrv (0x20) quaternions at about 32 Hz.
+- **`HeadYaw`**
+  - The head heading is the twist about world Z (gravity) of `q · conj(ref)`, so pitch and roll do
+    not leak into it. The output is the head yaw relative to the stage's forward, positive when
+    the head is turned left (AOSP).
+  - Recentering (Apple style): when the head has rested in one direction (within ±8°) for 6 s, at
+    least 15° away from forward, forward glides to it like a critically damped spring (95% in about
+    4 s, at most 30°/s), starting and ending slowly. Moving out of the resting window aborts it and
+    the stage slows to a stop. A brief look away does not move the stage.
+  - Drift: only while the head is within 15° of forward, a 120 s low-pass takes the remaining
+    offset as gyro heading drift (no magnetometer).
+  - The two buds' world frames are vertically opposite, so the sign follows the reporting bud's
+    role and a role switch restarts the reference.
+  - The role byte is at payload offset 36 in the 37-byte form, or right after the quaternion in the
+    short form.
+- **`PoseLink`:** the Bluetooth process passes a Binder sink in a broadcast. Yaw is sent oneway, and
+  the caller UID is checked.
+- **`BudsSettingsBridge`:** DexKit finds the methods by their strings and signatures.
+
+  | Manager method (found by) | Our behaviour |
+  |---|---|
+  | `SpatialSensorManager.isSupported` | returns true |
+  | creation of Samsung's sensor object | skipped (its lifecycle throws on non-Samsung phones) |
+  | spatial / head-tracking values | broadcast `BUDS_SPATIAL`, and attach/detach the pose stream |
+  | `semIsCodecSupported` / `semIsCodecEnabled` / `semSetCodecEnabled(dev, on, 8)` reflection helpers | UHQ supported, the per-device preference, and broadcasting `BUDS_UHQ` with the address |
+
+## Settings (`com.android.settings`)
+
+- HyperOS 4 developer options show the legacy `bluetooth_select_a2dp_codec` (MIUI
+  `DropDownPreference`, `BluetoothAudioCodecPreferenceController`). Selecting a codec builds the
+  config through `Builder.setCodecType(int)`, that is `BluetoothCodecType.createFromType(int)`. So
+  `createFromType(18)` returns SSC in both the Settings and Bluetooth processes.
+- **`SettingsCodecBridge`:**
+  - appends "SSC" to the list values, summaries, entries and entry values;
+  - maps an SSC config to that entry;
+  - writes type 18 with the highest priority when SSC is chosen;
+  - labels the codec on the device details page (`BluetoothDevicePreference`).
+- **`SettingsQualityBridge`:** a "SSC playback quality" drop-down after LDAC playback quality. It
+  uses broadcasts `SSC_QUALITY_SET` / `SSC_QUALITY_QUERY` → `SSC_QUALITY_STATE` and never
+  renegotiates the codec.
+
+## Cross-process messages
+
+| Action | From → to | Check |
+|---|---|---|
+| `BUDS_SPATIAL` (`enabled`) | Buds manager → Bluetooth | sender package |
+| `BUDS_UHQ` (`address`, `enabled`) | Buds manager → Bluetooth | sender package |
+| `REQUEST_POSE_SINK` / `POSE_SINK` (Binder `sink`) | Buds manager ↔ Bluetooth | caller UID on each transaction |
+| `SSC_QUALITY_SET` / `SSC_QUALITY_QUERY` (`mode`) | Settings → Bluetooth | sender package |
+| `SSC_QUALITY_STATE` (`mode`) | Bluetooth → Settings | sender package |
+| `SELECT_SSC`, `SELECT_AAC`, `SPATIAL_ON`, `SPATIAL_OFF` | adb → Bluetooth | `android.permission.DUMP` |
+
+All actions are prefixed `io.github.wxxsfxyzm.galaxybudsport.action.`. Identity comes from
+`BroadcastOptions.setShareIdentityEnabled` and `BroadcastReceiver.getSentFromPackage`.
+
+## Per-device UHQ
+
+- Native selection does not know the peer. So on A2DP `CONNECTING` the Bluetooth process hands that
+  device's preference to native code.
+- The first SSC codec config of each connection is then checked once and renegotiated if it does
+  not match.
+- Flipping the switch renegotiates the active SSC stream at 96 or 48 kHz through
+  `setCodecConfigPreference`.

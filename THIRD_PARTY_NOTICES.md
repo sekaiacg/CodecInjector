@@ -1,0 +1,44 @@
+# Third-party notices
+
+This project is licensed under the GNU General Public License v3.0 (see `LICENSE`). It includes or
+uses the following third-party components, under their own licenses.
+
+## Included in this repository
+
+### xz-embedded
+
+`third_party/xz-embedded/`: xz-embedded v2024-12-30 (<https://tukaani.org/xz/embedded.html>),
+unmodified. Licensed under the BSD Zero Clause License (0BSD); see `third_party/xz-embedded/COPYING`.
+Used to decompress the `.gnu_debugdata` (MiniDebugInfo) section for runtime symbol resolution.
+
+### AOSP audio effect AIDL and libbinder_ndk C++ helpers
+
+`third_party/aosp-effect-aidl-ndk/`: Android Open Source Project, Apache License 2.0.
+
+- `aidl/`: frozen AIDL API snapshots from `hardware/interfaces` and `system/hardware/interfaces`;
+- `include/`, `src/`: generated from those snapshots by the AOSP `aidl` compiler (`generate.sh`);
+- `binder_ndk_cpp/`: header-only helpers from `frameworks/native/libs/binder/ndk`.
+
+The Apache License 2.0 text: <https://www.apache.org/licenses/LICENSE-2.0>. Copyright notices are kept
+in the files.
+
+## Distributed in the built APK
+
+### DexKit
+
+`org.luckypray:dexkit:2.3.0`, unmodified (<https://github.com/LuckyPray/DexKit/tree/2.3.0>). Its
+Java/Kotlin part is licensed under the Apache License 2.0 and its native `Core/` under the GNU LGPL
+3.0 (<https://github.com/LuckyPray/DexKit#license>). Used to locate obfuscated methods of the Galaxy
+Buds manager.
+
+## Build-time only (not distributed)
+
+- libxposed API `io.github.libxposed:api:102.0.0` (`compileOnly`), Apache License 2.0.
+- JUnit 4.13.2 (unit tests), Eclipse Public License 1.0.
+
+## Not included
+
+Samsung's SSC encoder (`libScalable_Encoder.so`) is proprietary and is not part of this repository or
+its license. The build expects a copy that you obtained yourself in `app/src/main/jniLibs/arm64-v8a/`.
+Combining the Program with it, and with the system and vendor components it hooks, is allowed by the
+additional permission under GNU GPL version 3 section 7 stated in `README.md`.

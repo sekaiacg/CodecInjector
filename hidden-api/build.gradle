@@ -1,0 +1,9 @@
+// Compile-time declarations of hidden framework APIs. The app depends on this with compileOnly,
+// so nothing here is packaged; at runtime the framework's own classes are used.
+plugins { id "com.android.library" }
+
+android {
+    namespace "io.github.wxxsfxyzm.galaxybudsport.hiddenapi"
+    compileSdk 37
+    defaultConfig { minSdk 37 }
+}

@@ -1,0 +1,28 @@
+# Local environment and IDE state
+/local.properties
+/.gradle/
+/.idea/
+/.kotlin/
+*.iml
+build/
+.cxx/
+
+# Private Samsung encoder (not distributed) and generated packages
+/app/src/main/jniLibs/
+*.so
+*.apk
+*.aab
+*.jks
+*.keystore
+keystore.properties
+/keystore/
+
+# Local research material: device images, decompilation, captures, archived notes
+/out/
+
+# Editor / OS noise
+*.log
+*.tmp
+*.bak
+.DS_Store
+Thumbs.db
