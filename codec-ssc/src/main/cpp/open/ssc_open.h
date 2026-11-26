@@ -1,5 +1,5 @@
 /* Open SSC encoder: libopus CELT (third_party/opus, built with SSC_FORMAT) with the SSC format
-   rules. Same entry points as Samsung's encoder library, so the module can use either. */
+   rules. The entry points follow the encoder interface the SSC pipeline (ssc_interface) drives. */
 #ifndef SSC_OPEN_H
 #define SSC_OPEN_H
 

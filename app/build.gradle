@@ -30,8 +30,8 @@ android {
         applicationId "io.github.wxxsfxyzm.codecinjector"
         minSdk 37
         targetSdk 37
-        versionCode 129
-        versionName "1.0.4"
+        versionCode 130
+        versionName "1.0.5"
         ndk { abiFilters "arm64-v8a" }
         externalNativeBuild { cmake { arguments "-DANDROID_STL=c++_static" } }
     }
@@ -69,6 +69,10 @@ android {
     buildFeatures { buildConfig false }
     // Kotlin metadata of kotlin-stdlib (pulled in by DexKit); nothing here reads it.
     packaging {
+        jniLibs {
+            // The module carries its own SSC encoder; never package a proprietary one left in jniLibs.
+            excludes += ["**/libScalable_Encoder.so"]
+        }
         resources {
             excludes += ["kotlin/**", "META-INF/*.kotlin_module", "META-INF/*.version",
                          "DebugProbesKt.bin"]

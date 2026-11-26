@@ -1,10 +1,8 @@
-// SSC as a core codec plugin: SSC codec information and negotiation, and the software encoder
-// (Samsung's encoder library when packaged, otherwise the open encoder in open/), with Dolby spatial
-// rendering before encoding.
+// SSC as a core codec plugin: SSC codec information and negotiation, and the software encoder (the
+// open SSC encoder in open/), with Dolby spatial rendering before encoding.
 
 #include "ssc_codec.h"
 
-#include <dlfcn.h>
 #include <string.h>
 
 #include "port_api.h"
@@ -91,21 +89,8 @@ bool bind_encoder(const port::StackApi& stack) {
         info("ssc_encoder_unavailable", 0, 0);
         return false;
     }
-    // Samsung's encoder when it is packaged, otherwise the open one (libopus CELT in SSC format).
-    void* library = dlopen("libScalable_Encoder.so", RTLD_NOW | RTLD_LOCAL);
-    auto create = library ? reinterpret_cast<Create>(dlsym(library, "ssc_encoder_create")) : nullptr;
-    auto destroy = library ? reinterpret_cast<Destroy>(dlsym(library, "ssc_encoder_destroy")) : nullptr;
-    auto encode = library ? reinterpret_cast<Encode>(dlsym(library, "ssc_encode")) : nullptr;
-    const bool samsung = create && destroy && encode;
-    if (!samsung) {
-        if (library) dlclose(library);
-        create = ssc_open_create;
-        destroy = ssc_open_destroy;
-        encode = ssc_open_encode;
-    }
-    info("ssc_encoder", samsung ? 1 : 0, 0);
-    real_encode = encode;
-    underlying_encoder = bind({create, destroy, observe_encode, stack.allocate});
+    real_encode = ssc_open_encode;
+    underlying_encoder = bind({ssc_open_create, ssc_open_destroy, observe_encode, stack.allocate});
     observed_encoder = *underlying_encoder;
     observed_encoder.init = observe_encoder_init;
     observed_encoder.cleanup = observe_encoder_cleanup;

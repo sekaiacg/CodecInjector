@@ -1,5 +1,33 @@
 # Changelog
 
+## 1.0.5 (2026-11-26)
+
+**SSC no longer needs Samsung's encoder.** The module now carries its own open SSC encoder and
+includes no proprietary binaries, so releases can be published.
+
+- **Open SSC encoder.** SSC turned out to be CELT (the music codec in Opus) with a few changes. The
+  module now encodes it itself, built on libopus 1.3.1 (BSD, `third_party/opus`).
+  - The format was worked out by running Samsung's encoder in an arm64 emulator and checking every
+    rule against it:
+    - a 24-bit range coder;
+    - SSC's own 22-band modes with no pre-emphasis;
+    - no post-filter tapset;
+    - TF symbols only at the normal bitrates;
+    - a second allocation table above 192 kbps;
+    - the coded band count from the frame header;
+    - a 4-byte frame header.
+  - A test decoder written along the way reads Samsung's streams symbol for symbol.
+  - Frame sizes match Samsung's at every bitrate, and encoding takes under 1% of real time.
+  - Verified with Galaxy Buds4 Pro at every bitrate: UHQ 584/291/152 kbps and 48 kHz
+    192/128/88 kbps.
+  - 886 kbps is not offered: Buds4 Pro firmware plays nothing at that rate.
+- **No proprietary binaries.** Samsung's `libScalable_Encoder.so` is no longer loaded, and the build
+  never packages it, even if a copy is left in `jniLibs`. The license's additional permission no
+  longer mentions it.
+- **New log line `event=ssc_link`.** Logged when a stream starts, it shows whether the link allows
+  3 Mbps EDR. Buds4 Pro only support 2 Mbps, which is why 584 kbps is their top rate.
+- New host test for the open encoder: frame sizes, headers, and an encode/decode round trip.
+
 ## 1.0.4 (2026-11-26)
 
 **Upgrade note: the package name changed, so LSPosed treats this as a new module.** After
@@ -107,5 +135,6 @@ HyperOS 4.
 - Only Xiaomi HyperOS 4 (Android 17, arm64) is supported.
 - Galaxy Buds3 Pro support is not yet verified with the earbuds. Head tracking axes for other
   models may need to be recaptured and calibrated.
-- The release APK contains Samsung's closed-source encoder `libScalable_Encoder.so` and must not be
-  published.
+- The open SSC encoder always signals full bandwidth in the frame header (Samsung's encoder signals
+  where the content ends). It is tuned like libopus; on loud low-frequency tones it still trails
+  Samsung's encoder.

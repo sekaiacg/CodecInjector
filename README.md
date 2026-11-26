@@ -20,10 +20,9 @@ Tested with Galaxy Buds4 Pro and AirPods Pro 3.
   bitrate adapts to the transmit queue, or is fixed from developer options.
 - **Open SSC encoder.** SSC is CELT (the music codec of Opus) with a few changes: its own 22-band
   modes, a 24-bit range coder, no post-filter tapset, per-frame TF and allocation rules and a 4-byte
-  frame header. The module carries an open implementation of it, built on libopus
-  (`third_party/opus`, `codec-ssc/src/main/cpp/open`), and uses it unless Samsung's encoder library is
-  packaged. Its streams decode with an open decoder that reads Samsung's streams symbol for symbol;
-  it is not yet verified with the earbuds.
+  frame header. The module encodes it with its own implementation on libopus (`third_party/opus`,
+  `codec-ssc/src/main/cpp/open`); no Samsung code is included. Verified with Galaxy Buds4 Pro at
+  every bitrate (UHQ 584/291/152 kbps, 48 kHz 192/128/88 kbps).
 - **Galaxy Buds manager integration.** Its 360 audio, head tracking and UHQ ("advanced sound
   quality") switches drive this implementation; UHQ is stored per device.
 
@@ -70,9 +69,7 @@ updates do not need new offsets.
 
 ## Requirements
 
-- Nothing extra for SSC or AAC-ELD. Optionally, Samsung's SSC encoder (`libScalable_Encoder.so`,
-  arm64) in `app/src/main/jniLibs/arm64-v8a/` is used instead of the open encoder; it is not
-  distributed with this repository and is excluded by `.gitignore`.
+- Nothing beyond this repository: the SSC and AAC-ELD encoders are both built from source.
 - Android SDK platform 37, NDK `30.0.16138531`, CMake 4.1.2.
 
 ## Build and install
@@ -158,13 +155,10 @@ WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FI
 PURPOSE. See [LICENSE](LICENSE) for details, and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for
 the third-party components.
 
-Samsung's SSC encoder library is not included and is not covered by this license.
-
 ### Additional permission under GNU GPL version 3 section 7
 
-If you modify this Program, or any covered work, by linking or combining it with Samsung's SSC
-encoder library (`libScalable_Encoder.so`), or with libraries, services and applications that are
-part of the Android system or the device vendor's system image or that the Program runs inside of
+If you modify this Program, or any covered work, by linking or combining it with libraries, services
+and applications that are part of the Android system or the device vendor's system image or that the Program runs inside of
 (including the Bluetooth stack, the audio HAL and its audio effects such as the Dolby Spatializer,
 Android Settings and the Galaxy Buds manager application), or with a modified version of any of
 those, containing parts covered by the terms of their own licenses, the licensors of this Program

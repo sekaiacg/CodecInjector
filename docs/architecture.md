@@ -8,7 +8,7 @@
  │  SSC encoder interface (ssc_interface)                                          │
  │    Source/Frame: 864 samples per channel → Q8.23                                │
  │    DolbyHalStage ──FMQ──► audio HAL process: Dolby Spatializer (BINAURAL, A2DP) │
- │    ssc_encode (libScalable_Encoder.so) at BitrateLadder bitrate                 │
+ │    open SSC encoder (libopus CELT, SSC format) at BitrateLadder bitrate         │
  │    Packetizer → stock enqueue → AVDTP                                           │
  │  Java (PortRuntime + SscFeature): codec types, UHQ per device, quality, pose   │
  └─────────────────────────────────────────────────────────────────────────────────┘

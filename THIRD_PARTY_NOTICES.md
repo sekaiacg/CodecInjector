@@ -60,10 +60,13 @@ Buds manager.
 - libxposed API `io.github.libxposed:api:102.0.0` (`compileOnly`), Apache License 2.0.
 - JUnit 4.13.2 (unit tests), Eclipse Public License 1.0.
 
-## Not included
+## System components
 
-Samsung's SSC encoder (`libScalable_Encoder.so`) is proprietary and is not part of this repository or
-its license. It is optional: a copy you obtained yourself in `app/src/main/jniLibs/arm64-v8a/` is used
-when present, otherwise the module uses the open SSC encoder.
-Combining the Program with it, and with the system and vendor components it hooks, is allowed by the
-additional permission under GNU GPL version 3 section 7 stated in `README.md`.
+The module runs inside, and works with, components of the Android system and the device's vendor
+image that are not part of this repository (the Bluetooth stack, the audio HAL and its Dolby
+Spatializer, Android Settings, the Galaxy Buds manager). Combining the Program with them is allowed by
+the additional permission under GNU GPL version 3 section 7 stated in `README.md`.
+
+`tools/ssc_reference/` is a development probe that runs a separately obtained copy of Samsung's SSC
+encoder to produce reference streams; that library is not part of this repository, and the module
+neither loads nor packages it.
