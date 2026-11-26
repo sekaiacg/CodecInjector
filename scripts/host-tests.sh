@@ -32,6 +32,14 @@ done
 for test in "$root"/codec-ssc/src/test/cpp/*_test.cpp; do
     run "$test" -I"$core" -I"$ssc" "${core_sources[@]}" "${ssc_sources[@]}"
 done
+# Open SSC encoder/decoder (C): libopus CELT built with the SSC format changes.
+opus="$root/third_party/opus"
+open_dir="$ssc/open"
+clang -std=c11 -g -O1 -w -fsanitize=address,undefined -fno-sanitize=shift \
+    -DOPUS_BUILD -DCUSTOM_MODES -DVAR_ARRAYS -DHAVE_LRINTF -DSSC_FORMAT \
+    -I"$opus/include" -I"$opus/celt" -I"$open_dir" "$opus"/celt/*.c "$open_dir"/*.c \
+    "$root/codec-ssc/src/test/cpp/ssc_open_test.c" -lm -o "$out/ssc_open_test"
+if "$out/ssc_open_test" >/dev/null; then echo "PASS ssc_open_test"; else echo "FAIL ssc_open_test"; failed=1; fi
 for test in "$root"/codec-aeld/src/test/cpp/*_test.cpp; do
     run "$test" -I"$core" -I"$aeld" "${core_sources[@]}" "${aeld_sources[@]}"
 done

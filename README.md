@@ -16,9 +16,14 @@ Tested with Galaxy Buds4 Pro and AirPods Pro 3.
 ### Samsung Seamless Codec (Galaxy Buds)
 
 - **SSC 48 kHz and SSC UHQ 96 kHz.** Registered as vendor codec index 18 with codec ID
-  `0x00000001030075ff`, negotiated the way Samsung's stack does it and encoded on the CPU with
-  Samsung's encoder library. The bitrate adapts to the transmit queue, or is fixed from developer
-  options.
+  `0x00000001030075ff`, negotiated the way Samsung's stack does it and encoded on the CPU. The
+  bitrate adapts to the transmit queue, or is fixed from developer options.
+- **Open SSC encoder.** SSC is CELT (the music codec of Opus) with a few changes: its own 22-band
+  modes, a 24-bit range coder, no post-filter tapset, per-frame TF and allocation rules and a 4-byte
+  frame header. The module carries an open implementation of it, built on libopus
+  (`third_party/opus`, `codec-ssc/src/main/cpp/open`), and uses it unless Samsung's encoder library is
+  packaged. Its streams decode with an open decoder that reads Samsung's streams symbol for symbol;
+  it is not yet verified with the earbuds.
 - **Galaxy Buds manager integration.** Its 360 audio, head tracking and UHQ ("advanced sound
   quality") switches drive this implementation; UHQ is stored per device.
 
@@ -65,9 +70,9 @@ updates do not need new offsets.
 
 ## Requirements
 
-- For SSC: `libScalable_Encoder.so` (Samsung's SSC encoder, arm64) in
-  `app/src/main/jniLibs/arm64-v8a/`. It is not distributed with this repository and is excluded by
-  `.gitignore`. AAC-ELD needs nothing extra.
+- Nothing extra for SSC or AAC-ELD. Optionally, Samsung's SSC encoder (`libScalable_Encoder.so`,
+  arm64) in `app/src/main/jniLibs/arm64-v8a/` is used instead of the open encoder; it is not
+  distributed with this repository and is excluded by `.gitignore`.
 - Android SDK platform 37, NDK `30.0.16138531`, CMake 4.1.2.
 
 ## Build and install

@@ -22,6 +22,14 @@ Used to decompress the `.gnu_debugdata` (MiniDebugInfo) section for runtime symb
 The Apache License 2.0 text: <https://www.apache.org/licenses/LICENSE-2.0>. Copyright notices are kept
 in the files.
 
+### libopus (CELT)
+
+`third_party/opus/`: libopus v1.3.1 (<https://opus-codec.org>), `celt/` and the public headers, with
+the SSC format changes marked `SSC_FORMAT`. Copyright 2001-2011 Xiph.Org, Skype Limited, Octasic,
+Jean-Marc Valin, Timothy B. Terriberry, CSIRO, Gregory Maxwell, Mark Borgerding, Erik de Castro Lopo.
+BSD 3-Clause License, text in `third_party/opus/COPYING`. Built into the module's native library as
+the open SSC encoder.
+
 ### AOSP libheadtracking (ported logic)
 
 `core/src/main/java/.../core/HeadYaw.java` ports the recentering logic of AOSP's head tracking
@@ -55,6 +63,7 @@ Buds manager.
 ## Not included
 
 Samsung's SSC encoder (`libScalable_Encoder.so`) is proprietary and is not part of this repository or
-its license. The build expects a copy that you obtained yourself in `app/src/main/jniLibs/arm64-v8a/`.
+its license. It is optional: a copy you obtained yourself in `app/src/main/jniLibs/arm64-v8a/` is used
+when present, otherwise the module uses the open SSC encoder.
 Combining the Program with it, and with the system and vendor components it hooks, is allowed by the
 additional permission under GNU GPL version 3 section 7 stated in `README.md`.
