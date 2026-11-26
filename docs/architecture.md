@@ -4,7 +4,7 @@
  audio HAL (A2DP software session, PCM 48/96 kHz, packed 24-bit)
         │ read callback
         ▼
- Bluetooth process ── libgalaxybudsport.so ──────────────────────────────────────┐
+ Bluetooth process ── libcodecinjector.so ─────────────────────────────────────────┐
  │  SSC encoder interface (ssc_interface)                                          │
  │    Source/Frame: 864 samples per channel → Q8.23                                │
  │    DolbyHalStage ──FMQ──► audio HAL process: Dolby Spatializer (BINAURAL, A2DP) │

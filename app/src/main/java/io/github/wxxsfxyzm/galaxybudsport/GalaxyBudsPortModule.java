@@ -10,7 +10,7 @@ import java.util.List;
 /** LSPosed entry: the core with the codec modules this build includes. */
 public final class GalaxyBudsPortModule extends XposedModule {
     private final PortRuntime runtime =
-            new PortRuntime(this, "galaxybudsport", List.of(new SscFeature(), new AeldFeature()));
+            new PortRuntime(this, "codecinjector", List.of(new SscFeature(), new AeldFeature()));
 
     @Override public void onModuleLoaded(XposedModuleInterface.ModuleLoadedParam param) {
         runtime.onModuleLoaded(param);

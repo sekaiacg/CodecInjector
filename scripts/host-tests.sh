@@ -6,7 +6,7 @@ root="$(cd "$(dirname "$0")/.." && pwd)"
 core="$root/core/src/main/cpp"
 ssc="$root/codec-ssc/src/main/cpp"
 aeld="$root/codec-aeld/src/main/cpp"
-out="${TMPDIR:-/tmp}/galaxybudsport-host-tests"
+out="${TMPDIR:-/tmp}/codecinjector-host-tests"
 mkdir -p "$out"
 flags=(-std=c++20 -g -Wall -Wextra -Werror -fno-exceptions -fno-rtti -fsanitize=address,undefined)
 core_sources=("$core"/codec_registry.cpp "$core"/factory.cpp "$core"/registration.cpp
