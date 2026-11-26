@@ -6,7 +6,7 @@
 #include <cstdint>
 #include <cstring>
 
-using namespace sscport;
+using namespace ssc;
 
 static uint32_t read32(const uint8_t* data, size_t offset) {
     uint32_t value;

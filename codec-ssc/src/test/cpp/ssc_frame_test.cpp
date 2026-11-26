@@ -5,7 +5,7 @@
 #include <cstdint>
 #include <cstring>
 
-using namespace sscport;
+using namespace ssc;
 
 static uint8_t input[kPcmBytes];
 static size_t offset;

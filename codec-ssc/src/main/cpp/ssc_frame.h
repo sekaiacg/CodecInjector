@@ -5,7 +5,7 @@
 
 #include "a2dp_types.h"
 
-namespace sscport {
+namespace ssc {
 
 using port::Read;
 
@@ -51,4 +51,4 @@ private:
     uint64_t sample_micros_ = 0;
 };
 
-}  // namespace sscport
+}  // namespace ssc

@@ -12,7 +12,7 @@
 #include "ssc_interface.h"
 #include "ssc_negotiation.h"
 
-namespace sscport {
+namespace ssc {
 namespace {
 using port::info;
 
@@ -137,4 +137,4 @@ const port::CodecPlugin kPlugin{
 
 const port::CodecPlugin* plugin() { return &kPlugin; }
 
-}  // namespace sscport
+}  // namespace ssc

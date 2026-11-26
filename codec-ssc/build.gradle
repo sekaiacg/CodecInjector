@@ -3,7 +3,7 @@
 plugins { id "com.android.library" }
 
 android {
-    namespace "io.github.wxxsfxyzm.galaxybudsport.ssc"
+    namespace "io.github.wxxsfxyzm.codecinjector.ssc"
     compileSdk 37
     defaultConfig { minSdk 37 }
 }

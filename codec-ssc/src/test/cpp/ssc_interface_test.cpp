@@ -4,7 +4,7 @@
 #include <cstdlib>
 #include <cstring>
 
-using namespace sscport;
+using namespace ssc;
 
 static int created;
 static int destroyed;

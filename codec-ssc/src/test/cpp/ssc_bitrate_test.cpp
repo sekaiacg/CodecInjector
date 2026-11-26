@@ -2,7 +2,7 @@
 
 #include <cassert>
 
-using namespace sscport;
+using namespace ssc;
 
 static void feed(BitrateLadder& ladder, size_t queue, int count) {
     for (int i = 0; i < count; ++i) ladder.report_queue(queue);

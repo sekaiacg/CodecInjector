@@ -4,7 +4,7 @@
 
 #include "a2dp_types.h"
 
-namespace sscport {
+namespace ssc {
 
 using port::CodecTable;
 
@@ -12,4 +12,4 @@ using port::CodecTable;
 CodecTable make_ssc_codec_table(void (*destroy)(void*),
                                 void (*delete_object)(void*));
 
-}  // namespace sscport
+}  // namespace ssc

@@ -6,7 +6,7 @@
 
 void port_codecs(const port::CodecPlugin* const** codecs, size_t* count) {
     static const port::CodecPlugin* const kCodecs[] = {
-        sscport::plugin(),
+        ssc::plugin(),
         aeld::plugin(),
     };
     *codecs = kCodecs;

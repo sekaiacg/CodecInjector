@@ -2,7 +2,7 @@
 
 #include <stdint.h>
 
-namespace sscport {
+namespace ssc {
 
 // The codec information element contains the AVDTP length/header, Samsung
 // vendor/codec ID, and the selected mode. The output is the 48 kHz selection.
@@ -14,4 +14,4 @@ bool select_uhq_capability(const uint8_t* peer, uint8_t* selected);
 bool is_ssc_codec(const uint8_t* codec);
 void make_48k_capability(uint8_t* capability);
 
-}  // namespace sscport
+}  // namespace ssc

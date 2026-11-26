@@ -1,7 +1,7 @@
 {
   global:
     native_init;
-    Java_io_github_wxxsfxyzm_galaxybudsport_core_NativeBridge_*;
-    Java_io_github_wxxsfxyzm_galaxybudsport_ssc_SscNative_*;
+    Java_io_github_wxxsfxyzm_codecinjector_core_NativeBridge_*;
+    Java_io_github_wxxsfxyzm_codecinjector_ssc_SscNative_*;
   local: *;
 };

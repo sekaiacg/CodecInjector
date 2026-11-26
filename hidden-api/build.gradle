@@ -3,7 +3,7 @@
 plugins { id "com.android.library" }
 
 android {
-    namespace "io.github.wxxsfxyzm.galaxybudsport.hiddenapi"
+    namespace "io.github.wxxsfxyzm.codecinjector.hiddenapi"
     compileSdk 37
     defaultConfig { minSdk 37 }
 }

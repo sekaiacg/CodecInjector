@@ -1,6 +1,6 @@
 #include "ssc_bitrate.h"
 
-namespace sscport {
+namespace ssc {
 
 void BitrateLadder::reset(bool uhq) {
     uhq_ = uhq;
@@ -66,4 +66,4 @@ int32_t BitrateLadder::bitrate(Mode mode) const {
     return uhq_ ? 584000 : 192000;
 }
 
-}  // namespace sscport
+}  // namespace ssc

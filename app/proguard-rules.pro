@@ -4,15 +4,15 @@
 -dontobfuscate
 
 # The LSPosed entry, named in META-INF/xposed/java_init.list (invisible to R8).
--keep class io.github.wxxsfxyzm.galaxybudsport.GalaxyBudsPortModule { *; }
+-keep class io.github.wxxsfxyzm.codecinjector.CodecInjectorModule { *; }
 
-# Native methods implemented in libgalaxybudsport.so (Java_<class>_<method> symbols).
+# Native methods implemented in libcodecinjector.so (Java_<class>_<method> symbols).
 -keepclasseswithmembernames,includedescriptorclasses class * {
     native <methods>;
 }
 
-# DexKit: its native core and the Java API around it.
--keep class org.luckypray.dexkit.** { *; }
+# DexKit: its own consumer rules keep the natives libdexkit.so binds to (it looks up no Java class
+# by name), so the rest of its Java API is shrunk like our code.
 
 # libxposed and the hidden framework APIs are provided at runtime.
 -dontwarn io.github.libxposed.**

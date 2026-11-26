@@ -3,7 +3,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-namespace sscport {
+namespace ssc {
 
 // SSC bitrate by link busy level, with Samsung's per-profile tables:
 // SSC UHQ 96 kHz level 0/2/3 = 584000/291000/152000, SSC 48 kHz = 192000/128000/88000.
@@ -35,4 +35,4 @@ private:
     uint32_t recovery_streak_ = 0;
 };
 
-}  // namespace sscport
+}  // namespace ssc

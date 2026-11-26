@@ -339,7 +339,7 @@ void library_loaded(const char* name, void*) {
 }  // namespace
 
 void info(const char* event, int a, int b) {
-    __android_log_print(ANDROID_LOG_WARN, "SscPort", "stage=module event=%s pid=%d a=%d b=%d",
+    __android_log_print(ANDROID_LOG_WARN, "CodecInjector", "stage=module event=%s pid=%d a=%d b=%d",
                         event, getpid(), a, b);
 }
 

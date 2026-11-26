@@ -154,7 +154,7 @@ process. It opens it as stereo float at the session rate, with 864 frames.
 | `SSC_QUALITY_STATE` (`mode`) | Bluetooth → Settings | sender package |
 | `SELECT_CODEC --ei index <n>`, `SPATIAL_ON`, `SPATIAL_OFF` | adb → Bluetooth | `android.permission.DUMP` |
 
-All actions are prefixed `io.github.wxxsfxyzm.galaxybudsport.action.`. Identity comes from
+All actions are prefixed `io.github.wxxsfxyzm.codecinjector.action.`. Identity comes from
 `BroadcastOptions.setShareIdentityEnabled` and `BroadcastReceiver.getSentFromPackage`.
 
 ## Per-device UHQ

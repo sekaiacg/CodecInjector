@@ -5,7 +5,7 @@
 #include <cstdlib>
 #include <cstring>
 
-using namespace sscport;
+using namespace ssc;
 
 static unsigned enqueue_count;
 static bool enqueue_result = true;

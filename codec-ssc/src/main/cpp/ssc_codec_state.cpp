@@ -6,7 +6,7 @@
 
 #include "codec_object.h"
 
-namespace sscport {
+namespace ssc {
 using namespace port::codec_object;
 
 namespace {
@@ -76,4 +76,4 @@ bool codec_is_uhq(const void* object) {
     return (mode & 0x02) && !(mode & 0x04);
 }
 
-}  // namespace sscport
+}  // namespace ssc

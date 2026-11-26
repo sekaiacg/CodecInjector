@@ -1,7 +1,7 @@
 #include "ssc_codec_table.h"
 #include "ssc_codec_state.h"
 
-namespace sscport {
+namespace ssc {
 namespace {
 int32_t bitrate(const void*) { return 192000; }
 bool no_marker(const void*) { return false; }
@@ -15,4 +15,4 @@ CodecTable make_ssc_codec_table(void (*destroy)(void*),
             select_ssc_codec, set_ssc_peer_capability, init_ssc_codec, debug};
 }
 
-}  // namespace sscport
+}  // namespace ssc

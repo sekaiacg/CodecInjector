@@ -1,6 +1,6 @@
 #include "ssc_frame.h"
 
-namespace sscport {
+namespace ssc {
 
 Result Frame::encode(Read read, Encode encode, void* encoder, int32_t bitrate,
                      uint8_t* output, int32_t* output_size) {
@@ -52,4 +52,4 @@ void Source::reset() {
     sample_micros_ = 0;
 }
 
-}  // namespace sscport
+}  // namespace ssc

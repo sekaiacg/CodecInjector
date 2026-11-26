@@ -2,7 +2,7 @@
 #include "ssc_codec_state.h"
 #include "ssc_bitrate.h"
 
-namespace sscport {
+namespace ssc {
 namespace {
 
 Dependencies deps{};
@@ -93,4 +93,4 @@ const EncoderInterface* bind(const Dependencies& dependencies) {
     return &interface;
 }
 
-}  // namespace sscport
+}  // namespace ssc

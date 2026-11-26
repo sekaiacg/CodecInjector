@@ -2,7 +2,7 @@
 
 #include <stdint.h>
 
-namespace sscport {
+namespace ssc {
 
 // Operations on an already constructed Android 17 A2dpCodecConfig object.
 // Construction, synchronization and registration belong to the caller.
@@ -16,4 +16,4 @@ void set_uhq_preferred(bool preferred);
 // Whether the codec object's selected (OTA) configuration is SSC UHQ.
 bool codec_is_uhq(const void* object);
 
-}  // namespace sscport
+}  // namespace ssc

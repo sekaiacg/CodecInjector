@@ -2,7 +2,7 @@
 
 #include <string.h>
 
-namespace sscport {
+namespace ssc {
 
 constexpr size_t kBufferBytes = 0x1010;
 constexpr uint16_t kMediaOffset = 23;
@@ -28,4 +28,4 @@ bool Packetizer::emit_callback(void* context, const uint8_t* frame,
     return static_cast<Packetizer*>(context)->emit(frame, size, pcm_bytes);
 }
 
-}  // namespace sscport
+}  // namespace ssc

@@ -2,7 +2,7 @@
 
 #include <string.h>
 
-namespace sscport {
+namespace ssc {
 namespace {
 constexpr uint8_t kPrefix[] = {0x09, 0x00, 0xff, 0x75, 0x00,
                                0x00, 0x00, 0x03, 0x01};
@@ -40,4 +40,4 @@ bool select_uhq_capability(const uint8_t* peer, uint8_t* selected) {
     return true;
 }
 
-}  // namespace sscport
+}  // namespace ssc

@@ -5,7 +5,7 @@
 
 #include "a2dp_types.h"
 
-namespace sscport {
+namespace ssc {
 
 using port::Allocate;
 using port::BtHdr;
@@ -29,4 +29,4 @@ private:
     uint32_t packet_count_ = 0;
 };
 
-}  // namespace sscport
+}  // namespace ssc

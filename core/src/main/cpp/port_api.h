@@ -8,7 +8,7 @@
 
 namespace port {
 
-// Module log line (tag SscPort, "stage=module event=...").
+// Module log line (tag CodecInjector, "stage=module event=...").
 void info(const char* event, int a, int b);
 
 // The Dolby Spatializer stage, shared by all codecs: started and stopped by a codec's encoder,

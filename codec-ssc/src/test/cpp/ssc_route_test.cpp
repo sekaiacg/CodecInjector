@@ -8,7 +8,7 @@
 #include <cstdlib>
 #include <cstring>
 
-using namespace sscport;
+using namespace ssc;
 using port::CodecPlugin;
 using port::Factory;
 using port::VendorDispatch;
@@ -84,11 +84,11 @@ bool timestamp(const uint8_t*, const uint8_t* data, uint32_t* out) {
     std::memcpy(out, data, sizeof(*out));
     return true;
 }
-const CodecPlugin ssc{"SSC", 18, 0x00000001030075ff, 1000000, make_ssc_codec_table, bind_plugin,
-                      is_ssc_codec, valid, capability, get_encoder, header, timestamp};
+const CodecPlugin ssc_codec{"SSC", 18, 0x00000001030075ff, 1000000, make_ssc_codec_table, bind_plugin,
+                            is_ssc_codec, valid, capability, get_encoder, header, timestamp};
 
 int main() {
-    const CodecPlugin* codecs[] = {&ssc};
+    const CodecPlugin* codecs[] = {&ssc_codec};
     port::set_codecs(codecs, 1);
     CodecTable table = make_ssc_codec_table(nullptr, nullptr);
     Factory local_factory({system_init, system_supports, system_extension, base}, &table);

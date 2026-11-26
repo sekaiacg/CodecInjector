@@ -3,7 +3,7 @@
 #include "ssc_frame.h"
 #include "ssc_packet.h"
 
-namespace sscport {
+namespace ssc {
 
 using port::EncoderInterface;
 using port::PeerParams;
@@ -24,4 +24,4 @@ const EncoderInterface* bind(const Dependencies& dependencies);
 // Bitrate mode from developer options: 0 adaptive, 1/2/3 fixed high/medium/low (see BitrateLadder).
 void set_quality_mode(uint32_t mode);
 
-}  // namespace sscport
+}  // namespace ssc

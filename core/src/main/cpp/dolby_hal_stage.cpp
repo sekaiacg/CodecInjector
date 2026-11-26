@@ -43,7 +43,7 @@ using aidl::android::media::audio::common::HeadTracking;
 using aidl::android::media::audio::common::PcmType;
 using aidl::android::media::audio::common::Spatialization;
 
-constexpr char kTag[] = "SscPort";
+constexpr char kTag[] = "CodecInjector";
 constexpr char kFactory[] = "android.hardware.audio.effect.IFactory/default";
 // V1 effects wait for kEventFlagNotEmpty (0x1); V2+ (reopen-capable) for kEventFlagDataMqNotEmpty.
 constexpr uint32_t kWakeBits = 0x1 | (1u << 11);

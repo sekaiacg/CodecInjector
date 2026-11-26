@@ -3,7 +3,7 @@
 #include <cassert>
 #include <cstring>
 
-using namespace sscport;
+using namespace ssc;
 
 int main() {
     uint8_t local[10]{};
