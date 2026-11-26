@@ -84,7 +84,8 @@ Enable the module in LSPosed with the scope:
 |---|---|
 | `com.android.bluetooth` | the codecs, Dolby spatial audio |
 | `com.android.settings` | codec list, quality setting, device label, AirPods page |
-| `com.samsung.accessory.budsunitemgr` | Galaxy Buds head tracking and switches |
+| `com.samsung.accessory.budsunitemgr` | Galaxy Buds4 / Buds4 Pro manager: head tracking and switches |
+| `com.samsung.accessory.paranmgr` | Galaxy Buds3 Pro manager: head tracking and switches (not yet verified with the earbuds) |
 | `com.xiaomi.bluetooth` | AirPods head tracking |
 
 Then restart Bluetooth, the Galaxy Buds manager and `com.xiaomi.bluetooth` (or reboot).

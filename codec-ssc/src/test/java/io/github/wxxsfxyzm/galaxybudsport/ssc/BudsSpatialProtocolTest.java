@@ -30,4 +30,23 @@ public class BudsSpatialProtocolTest {
         assertTrue(BudsSpatialProtocol.decodeQuaternion(new BudsSpatialProtocol.Frame(
                 BudsSpatialProtocol.SPATIAL_AUDIO_DATA, shortForm)).auxiliaryFlag);
     }
+
+    @Test public void readsSpatialSwitchesFromSetSpatialAudio() {
+        // The hearable managers send [360 audio, head tracking].
+        boolean[] both = BudsPoseTap.spatialSwitches(new BudsSpatialProtocol.Frame(
+                BudsSpatialProtocol.SET_SPATIAL_AUDIO, new byte[] {1, 0}));
+        assertEquals(2, both.length);
+        assertTrue(both[0]);
+        assertFalse(both[1]);
+        boolean[] tracking = BudsPoseTap.spatialSwitches(new BudsSpatialProtocol.Frame(
+                BudsSpatialProtocol.SET_SPATIAL_AUDIO, new byte[] {1, 1}));
+        assertTrue(tracking[0] && tracking[1]);
+        // Older firmware: the 360 audio switch only.
+        boolean[] spatial = BudsPoseTap.spatialSwitches(new BudsSpatialProtocol.Frame(
+                BudsSpatialProtocol.SET_SPATIAL_AUDIO, new byte[] {0}));
+        assertEquals(1, spatial.length);
+        assertFalse(spatial[0]);
+        assertEquals(null, BudsPoseTap.spatialSwitches(new BudsSpatialProtocol.Frame(
+                BudsSpatialProtocol.SPATIAL_AUDIO_CONTROL, new byte[] {1, 1})));
+    }
 }

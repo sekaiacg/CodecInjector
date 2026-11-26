@@ -28,7 +28,18 @@ import java.util.concurrent.ConcurrentHashMap;
  * switches, per-device UHQ, and the SSC playback quality setting.
  */
 public final class SscFeature implements CodecFeature {
-    static final String BUDS_MANAGER = "com.samsung.accessory.budsunitemgr";
+    /**
+     * Galaxy Buds manager apps: the unified manager (Galaxy Buds4 / Buds4 Pro) and the per-model
+     * "hearable" managers (Galaxy Buds3 Pro). They share the SPP protocol; their settings code
+     * differs (see BudsSettingsBridge).
+     */
+    static final java.util.List<String> BUDS_MANAGERS = java.util.List.of(
+            "com.samsung.accessory.budsunitemgr",
+            "com.samsung.accessory.paranmgr");
+
+    static boolean isBudsManager(String packageName) {
+        return packageName != null && BUDS_MANAGERS.contains(packageName);
+    }
     static final CodecInfo CODEC = new CodecInfo(18, 0x00000001030075ffL, "SSC");
     private static final String TAG = "SscPort";
     private static volatile int qualityMode;
@@ -41,20 +52,25 @@ public final class SscFeature implements CodecFeature {
     }
 
     @Override public java.util.List<String> poseSources() {
-        return java.util.List.of(BUDS_MANAGER);
+        return BUDS_MANAGERS;
     }
 
     @Override public void onProcess(XposedInterface xposed, String processName) {
-        if (processName.startsWith(BUDS_MANAGER)) BudsPoseTap.install(xposed);
+        for (String manager : BUDS_MANAGERS) {
+            if (processName.equals(manager) || processName.startsWith(manager + ":")) {
+                BudsPoseTap.install(xposed);
+                return;
+            }
+        }
     }
 
     @Override public void onPackage(XposedInterface xposed, XposedModuleInterface.PackageReadyParam param) {
-        if (!BUDS_MANAGER.equals(param.getPackageName())) return;
+        if (!isBudsManager(param.getPackageName())) return;
         try {
             BudsSettingsBridge.install(xposed, param.getApplicationInfo().sourceDir,
                     param.getClassLoader());
         } catch (Throwable error) {
-            Log.e("SscPortBuds", "stage=buds_settings error=" + error);
+            BudsLog.e("stage=buds_settings error=" + error);
         }
     }
 
@@ -66,12 +82,22 @@ public final class SscFeature implements CodecFeature {
         }
     }
 
+    private static volatile XposedInterface xposed;
+
+    /** Bluetooth-side events: logcat and the LSPosed log. */
+    private static void log(String message) {
+        Log.w(TAG, message);
+        XposedInterface module = xposed;
+        if (module != null) module.log(Log.WARN, TAG, message);
+    }
+
     @Override public void onBluetooth(BluetoothHost host) {
+        xposed = host.xposed;
         // 360 audio switch from the Buds manager's settings page; accepted only from it.
         host.context.registerReceiver(new BroadcastReceiver() {
             @Override public void onReceive(Context ctx, Intent intent) {
-                if (!BUDS_MANAGER.equals(getSentFromPackage())) {
-                    Log.w(TAG, "stage=buds_spatial rejected_sender=" + getSentFromPackage());
+                if (!isBudsManager(getSentFromPackage())) {
+                    log("stage=buds_spatial rejected_sender=" + getSentFromPackage());
                     return;
                 }
                 budsSpatial = intent.getBooleanExtra(BudsSettingsBridge.EXTRA_ENABLED, true);
@@ -108,7 +134,7 @@ public final class SscFeature implements CodecFeature {
         host.context.registerReceiver(new BroadcastReceiver() {
             @Override public void onReceive(Context ctx, Intent intent) {
                 if (!PortRuntime.SETTINGS.equals(getSentFromPackage())) {
-                    Log.w(TAG, "stage=ssc_quality rejected_sender=" + getSentFromPackage());
+                    log("stage=ssc_quality rejected_sender=" + getSentFromPackage());
                     return;
                 }
                 int mode = SettingsQualityBridge.ACTION_SET.equals(intent.getAction())
@@ -134,7 +160,7 @@ public final class SscFeature implements CodecFeature {
         BluetoothCodecStatus status = host.codecStatus(device);
         BluetoothCodecConfig current = status == null ? null : status.getCodecConfig();
         if (!CODEC.matches(current)) {
-            Log.w(TAG, "stage=uhq_select skipped=not_ssc");
+            log("stage=uhq_select skipped=not_ssc");
             return;
         }
         BluetoothCodecType type = current.getExtendedCodecType();
@@ -147,7 +173,7 @@ public final class SscFeature implements CodecFeature {
                 .setBitsPerSample(current.getBitsPerSample())
                 .setChannelMode(current.getChannelMode())
                 .build());
-        Log.w(TAG, "stage=uhq_select rate=" + (uhq ? 96000 : 48000));
+        log("stage=uhq_select rate=" + (uhq ? 96000 : 48000));
     }
 
     /**
@@ -167,8 +193,8 @@ public final class SscFeature implements CodecFeature {
         SscNative.nativeSetUhq(false);
         host.context.registerReceiver(new BroadcastReceiver() {
             @Override public void onReceive(Context ctx, Intent intent) {
-                if (!BUDS_MANAGER.equals(getSentFromPackage())) {
-                    Log.w(TAG, "stage=buds_uhq rejected_sender=" + getSentFromPackage());
+                if (!isBudsManager(getSentFromPackage())) {
+                    log("stage=buds_uhq rejected_sender=" + getSentFromPackage());
                     return;
                 }
                 String address = intent.getStringExtra(BudsSettingsBridge.EXTRA_ADDRESS);
@@ -176,13 +202,13 @@ public final class SscFeature implements CodecFeature {
                 boolean on = intent.getBooleanExtra(BudsSettingsBridge.EXTRA_ENABLED, false);
                 boolean changed = prefs.getBoolean(BudsSettingsBridge.uhqKey(address), false) != on;
                 prefs.edit().putBoolean(BudsSettingsBridge.uhqKey(address), on).apply();
-                Log.w(TAG, "stage=buds_uhq enabled=" + on + " changed=" + changed);
+                log("stage=buds_uhq enabled=" + on + " changed=" + changed);
                 if (!changed) return;
                 SscNative.nativeSetUhq(on);
                 try {
                     selectSscRate(host, BluetoothAdapter.getDefaultAdapter().getRemoteDevice(address), on);
                 } catch (Exception error) {
-                    Log.e(TAG, "stage=uhq_select error=" + error.getClass().getSimpleName());
+                    log("stage=uhq_select error=" + error.getClass().getSimpleName());
                 }
             }
         }, new IntentFilter(BudsSettingsBridge.ACTION_UHQ), null, host.handler,
@@ -216,10 +242,10 @@ public final class SscFeature implements CodecFeature {
                 try {
                     selectSscRate(host, device, uhq);
                 } catch (Exception error) {
-                    Log.e(TAG, "stage=uhq_select error=" + error.getClass().getSimpleName());
+                    log("stage=uhq_select error=" + error.getClass().getSimpleName());
                 }
             });
         });
-        Log.w(TAG, "stage=uhq_connection installed=1");
+        log("stage=uhq_connection installed=1");
     }
 }

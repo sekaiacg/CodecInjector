@@ -4,7 +4,6 @@ import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothSocket;
 import android.os.Handler;
 import android.os.HandlerThread;
-import android.util.Log;
 import io.github.libxposed.api.XposedInterface;
 import io.github.wxxsfxyzm.galaxybudsport.core.HeadTracker;
 import java.io.IOException;
@@ -32,6 +31,20 @@ final class BudsPoseTap {
             Collections.synchronizedMap(new WeakHashMap<>());
     private static Handler handler;
     private static volatile boolean headTracking;
+    // Managers whose switches are read from the protocol (BudsSettingsBridge): the manager's own
+    // SET_SPATIAL_AUDIO frames carry them, so the tap does not send its own.
+    private static volatile boolean switchesFromProtocol;
+    private static volatile BluetoothDevice device;
+
+    /** Reads the 360 audio / head tracking switches from the manager's SET_SPATIAL_AUDIO frames. */
+    static void readSwitchesFromProtocol() {
+        switchesFromProtocol = true;
+    }
+
+    /** The buds of the most recently tracked SPP session, or null. */
+    static BluetoothDevice device() {
+        return device;
+    }
 
     /** Head tracking switch from the manager's settings page (see BudsSettingsBridge). */
     static void setHeadTracking(boolean enabled) {
@@ -41,7 +54,7 @@ final class BudsPoseTap {
             sessions = SESSIONS.values().toArray(new Session[0]);
         }
         for (Session session : sessions) handler().post(session::update);
-        Log.w(TAG, "stage=buds_tap event=head_tracking enabled=" + enabled);
+        BudsLog.w("stage=buds_tap event=head_tracking enabled=" + enabled);
     }
 
     private BudsPoseTap() {
@@ -49,6 +62,7 @@ final class BudsPoseTap {
 
     /** Tracks the manager's SPP socket to the buds and taps its streams. */
     static void install(XposedInterface xposed) {
+        BudsLog.attach(xposed);
         try {
             for (String name : new String[] {"createInsecureRfcommSocketToServiceRecord",
                     "createRfcommSocketToServiceRecord"}) {
@@ -70,9 +84,9 @@ final class BudsPoseTap {
             xposed.hook(output).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
                     .intercept(chain -> wrapOutput((BluetoothSocket) chain.getThisObject(),
                             (OutputStream) chain.proceed()));
-            Log.w(TAG, "stage=buds_tap event=installed");
+            BudsLog.w("stage=buds_tap event=installed");
         } catch (ReflectiveOperationException error) {
-            Log.e(TAG, "stage=buds_tap error=" + error.getClass().getSimpleName());
+            BudsLog.e("stage=buds_tap error=" + error.getClass().getSimpleName());
         }
     }
 
@@ -87,7 +101,12 @@ final class BudsPoseTap {
 
     static void track(BluetoothSocket socket) {
         SESSIONS.put(socket, new Session());
-        Log.w(TAG, "stage=buds_tap event=socket_tracked");
+        try {
+            if (socket.getRemoteDevice() != null) device = socket.getRemoteDevice();
+        } catch (RuntimeException ignored) {
+            // no device
+        }
+        BudsLog.w("stage=buds_tap event=socket_tracked");
     }
 
     static InputStream wrapInput(BluetoothSocket socket, InputStream stream) {
@@ -102,8 +121,20 @@ final class BudsPoseTap {
         return session.output(stream);
     }
 
+    /** SET_SPATIAL_AUDIO payload: [360 audio, head tracking], the second byte optional. */
+    static boolean[] spatialSwitches(BudsSpatialProtocol.Frame frame) {
+        if (frame == null || frame.messageId != BudsSpatialProtocol.SET_SPATIAL_AUDIO
+                || frame.payload.length < 1) {
+            return null;
+        }
+        boolean spatial = frame.payload[0] == 1;
+        if (frame.payload.length < 2) return new boolean[] {spatial};
+        return new boolean[] {spatial, frame.payload[1] == 1};
+    }
+
     static final class Session {
         private BudsSpatialProtocol.StreamDecoder decoder = new BudsSpatialProtocol.StreamDecoder();
+        private BudsSpatialProtocol.StreamDecoder sentDecoder = new BudsSpatialProtocol.StreamDecoder();
         private TappedOutput output;
         private boolean attachScheduled;
         private boolean attached;
@@ -118,6 +149,7 @@ final class BudsPoseTap {
         private final HeadTracker tracker = new HeadTracker(-1.0, null, FORWARD_ROLE_TRUE)
                 .useBodyAxes(false, UP_ROLE_FALSE, RIGHT_ROLE_FALSE);
         private long lastYawLogMs;
+        private long lastYawModuleLogMs;
         private long samples;
         private long lastLogMs;
         private long windowStartMs;
@@ -128,7 +160,7 @@ final class BudsPoseTap {
         }
 
         synchronized OutputStream output(OutputStream stream) {
-            if (output == null || output.delegate != stream) output = new TappedOutput(stream);
+            if (output == null || output.delegate != stream) output = new TappedOutput(stream, this);
             if (!attachScheduled) {
                 attachScheduled = true;
                 handler().postDelayed(this::update, ATTACH_DELAY_MS);
@@ -144,7 +176,8 @@ final class BudsPoseTap {
             // A restarted manager does not report the switches again; use the stored ones.
             BudsSettingsBridge.restore();
             if (headTracking && !attached) {
-                if (!send(BudsSpatialProtocol.encodeRequest(BudsSpatialProtocol.SET_SPATIAL_AUDIO, 1))
+                if ((!switchesFromProtocol && !send(BudsSpatialProtocol.encodeRequest(
+                                BudsSpatialProtocol.SET_SPATIAL_AUDIO, 1)))
                         || !send(BudsSpatialProtocol.encodeRequest(
                                 BudsSpatialProtocol.SPATIAL_AUDIO_CONTROL,
                                 BudsSpatialProtocol.CONTROL_ATTACH))) {
@@ -152,15 +185,17 @@ final class BudsPoseTap {
                 }
                 attached = true;
                 tracker.reset();
-                Log.w(TAG, "stage=buds_tap event=attach_sent");
+                BudsLog.w("stage=buds_tap event=attach_sent");
                 handler().postDelayed(this::keepAlive, KEEP_ALIVE_MS);
             } else if (!headTracking && attached) {
                 attached = false;
                 send(BudsSpatialProtocol.encodeRequest(BudsSpatialProtocol.SPATIAL_AUDIO_CONTROL,
                         BudsSpatialProtocol.CONTROL_DETACH));
-                send(BudsSpatialProtocol.encodeRequest(BudsSpatialProtocol.SET_SPATIAL_AUDIO, 0));
+                if (!switchesFromProtocol) {
+                    send(BudsSpatialProtocol.encodeRequest(BudsSpatialProtocol.SET_SPATIAL_AUDIO, 0));
+                }
                 tracker.reset();
-                Log.w(TAG, "stage=buds_tap event=detach_sent");
+                BudsLog.w("stage=buds_tap event=detach_sent");
             }
         }
 
@@ -181,12 +216,27 @@ final class BudsPoseTap {
             }
             if (out == null) return false;
             try {
-                out.write(frame);
-                out.flush();
+                out.writeOwn(frame);
                 return true;
             } catch (IOException error) {
-                Log.w(TAG, "stage=buds_tap event=send_failed error=" + error.getClass().getSimpleName());
+                BudsLog.w("stage=buds_tap event=send_failed error=" + error.getClass().getSimpleName());
                 return false;
+            }
+        }
+
+        /** Frames the manager writes to the buds. */
+        void sent(byte[] data, int offset, int length) {
+            if (!switchesFromProtocol) return;
+            List<BudsSpatialProtocol.Frame> frames;
+            try {
+                frames = sentDecoder.append(data, offset, length);
+            } catch (RuntimeException error) {
+                sentDecoder = new BudsSpatialProtocol.StreamDecoder();
+                return;
+            }
+            for (BudsSpatialProtocol.Frame frame : frames) {
+                boolean[] switches = spatialSwitches(frame);
+                if (switches != null) BudsSettingsBridge.fromProtocol(switches);
             }
         }
 
@@ -201,7 +251,7 @@ final class BudsPoseTap {
             }
             for (BudsSpatialProtocol.Frame frame : frames) {
                 if (BudsSpatialProtocol.isAttachSuccess(frame)) {
-                    Log.w(TAG, "stage=buds_tap event=attach_success");
+                    BudsLog.w("stage=buds_tap event=attach_success");
                     continue;
                 }
                 BudsSpatialProtocol.QuaternionSample q = BudsSpatialProtocol.decodeQuaternion(frame);
@@ -215,10 +265,17 @@ final class BudsPoseTap {
                     android.os.SystemClock.elapsedRealtimeNanos());
             long nowMs = System.currentTimeMillis();
             if (nowMs - lastYawLogMs >= 500) {
-                lastYawLogMs = nowMs;
-                Log.w(TAG, String.format(java.util.Locale.ROOT,
+                String line = String.format(java.util.Locale.ROOT,
                         "stage=buds_tap event=yaw deg=%.1f pitch=%.1f role=%b", Math.toDegrees(yaw),
-                        Math.toDegrees(tracker.pitch()), q.auxiliaryFlag));
+                        Math.toDegrees(tracker.pitch()), q.auxiliaryFlag);
+                // Every 5 s into the LSPosed log, every 0.5 s into logcat.
+                if (nowMs - lastYawModuleLogMs >= 5000) {
+                    lastYawModuleLogMs = nowMs;
+                    BudsLog.w(line);
+                } else {
+                    BudsLog.verbose(line);
+                }
+                lastYawLogMs = nowMs;
             }
             samples++;
             windowSamples++;
@@ -237,7 +294,7 @@ final class BudsPoseTap {
                     2 * (q.w * q.y - q.z * q.x)))));
             double rz = Math.toDegrees(Math.atan2(2 * (q.w * q.z + q.x * q.y),
                     1 - 2 * (q.y * q.y + q.z * q.z)));
-            Log.w(TAG, String.format(java.util.Locale.ROOT,
+            BudsLog.verbose(String.format(java.util.Locale.ROOT,
                     "stage=buds_tap event=pose n=%d rate=%.1f q=%.4f,%.4f,%.4f,%.4f flag=%b "
                             + "euler_x=%.1f euler_y=%.1f euler_z=%.1f",
                     samples, rate, q.x, q.y, q.z, q.w, q.auxiliaryFlag, rx, ry, rz));
@@ -276,18 +333,28 @@ final class BudsPoseTap {
 
     private static final class TappedOutput extends OutputStream {
         final OutputStream delegate;
+        private final Session session;
 
-        TappedOutput(OutputStream delegate) {
+        TappedOutput(OutputStream delegate, Session session) {
             this.delegate = delegate;
+            this.session = session;
+        }
+
+        /** Writes one of our own frames, without reading it as the manager's. */
+        synchronized void writeOwn(byte[] frame) throws IOException {
+            delegate.write(frame, 0, frame.length);
+            delegate.flush();
         }
 
         @Override public synchronized void write(int value) throws IOException {
             delegate.write(value);
+            session.sent(new byte[] {(byte) value}, 0, 1);
         }
 
         @Override public synchronized void write(byte[] buffer, int offset, int length)
                 throws IOException {
             delegate.write(buffer, offset, length);
+            session.sent(buffer, offset, length);
         }
 
         @Override public synchronized void flush() throws IOException {

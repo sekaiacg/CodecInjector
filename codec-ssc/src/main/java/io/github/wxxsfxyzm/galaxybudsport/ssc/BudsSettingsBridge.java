@@ -5,7 +5,6 @@ import android.app.BroadcastOptions;
 import android.bluetooth.BluetoothDevice;
 import android.content.Context;
 import android.content.Intent;
-import android.util.Log;
 import io.github.libxposed.api.XposedInterface;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -24,6 +23,18 @@ import org.luckypray.dexkit.result.UsingFieldData;
  * Reuses the Galaxy Buds manager's 360 audio / head tracking settings UI on non-Samsung phones,
  * with our own behavior behind the switches. The obfuscated targets are located by DexKit from
  * the strings and signatures they use, never by name.
+ * <p>
+ * Two manager generations are handled:
+ * <ul>
+ *   <li>The unified manager (budsunitemgr: Galaxy Buds4 / Buds4 Pro): its SpatialSensorManager
+ *       reports the switches through setSpatialValue / setSpatialHeadTrackingValue, which are
+ *       hooked; Samsung's sensor object is not created.</li>
+ *   <li>The per-model "hearable" managers (paranmgr: Galaxy Buds3 Pro): the settings page turns
+ *       the switches into a SET_SPATIAL_AUDIO frame [360 audio, head tracking] to the buds, read by
+ *       the SPP tap, and the manager broadcasts the buds' state (ACTION_SPATIAL_AUDIO_SETTING_UPDATED)
+ *       when it is reported. Only the UI's support check is forced; Samsung's sensor library keeps
+ *       its own (floating feature) check and stays off, so it never competes with the tap.</li>
+ * </ul>
  */
 final class BudsSettingsBridge {
     static final String ACTION_SPATIAL = "io.github.wxxsfxyzm.galaxybudsport.action.BUDS_SPATIAL";
@@ -47,6 +58,21 @@ final class BudsSettingsBridge {
 
     static void install(XposedInterface xposed, String apkPath, ClassLoader loader) {
         System.loadLibrary("dexkit");
+        boolean unified;
+        try (DexKitBridge bridge = DexKitBridge.create(apkPath)) {
+            // The unified manager's SpatialSensorManager tags its logs "SpatialSensorManager".
+            unified = !bridge.findMethod(FindMethod.create().matcher(MethodMatcher.create()
+                    .usingStrings("SpatialSensorManager", "isSupported() : ")
+                    .modifiers(Modifier.STATIC))).isEmpty();
+        }
+        if (unified) {
+            installUnified(xposed, apkPath, loader);
+        } else {
+            installHearable(xposed, apkPath, loader);
+        }
+    }
+
+    private static void installUnified(XposedInterface xposed, String apkPath, ClassLoader loader) {
         Method support;
         Method create;
         Method values;
@@ -97,9 +123,107 @@ final class BudsSettingsBridge {
                     apply(spatial, (Boolean) chain.getArg(1), "tracking");
                     return null;
                 });
-        Log.w(TAG, "stage=buds_settings event=installed support=" + describe(support)
+        BudsLog.w("stage=buds_settings event=installed support=" + describe(support)
                 + " create=" + describe(create) + " values=" + describe(values)
                 + " tracking=" + describe(tracking));
+    }
+
+    private static final String ACTION_SETTING_UPDATED = "com.samsung.accessory.hearablemgr.core.service"
+            + ".SpatialSensorManager.ACTION_SPATIAL_AUDIO_SETTING_UPDATED";
+
+    /** The per-model managers (see the class comment). */
+    private static void installHearable(XposedInterface xposed, String apkPath, ClassLoader loader) {
+        Method support;
+        Method supported;
+        Method enabled;
+        Method set;
+        try (DexKitBridge bridge = DexKitBridge.create(apkPath)) {
+            // SpatialSensorManagerImpl.isSupported(Context): Samsung device and floating feature.
+            support = single(bridge, MethodMatcher.create()
+                    .usingStrings("isSupported() : ", "isSupported() : Exception : ")
+                    .returnType("boolean")
+                    .paramTypes("android.content.Context"), loader, "support");
+            // BluetoothA2dpUhqControl: UHQ support, state and switch for the connected buds.
+            supported = single(bridge, MethodMatcher.create()
+                    .usingStrings("semIsCodecSupported")
+                    .modifiers(Modifier.STATIC)
+                    .returnType("boolean")
+                    .paramTypes(), loader, "uhq_supported");
+            enabled = single(bridge, MethodMatcher.create()
+                    .usingStrings("semIsCodecEnabled")
+                    .modifiers(Modifier.STATIC)
+                    .returnType("boolean")
+                    .paramTypes(), loader, "uhq_enabled");
+            set = single(bridge, MethodMatcher.create()
+                    .usingStrings("semSetCodecEnabled")
+                    .modifiers(Modifier.STATIC)
+                    .returnType("void")
+                    .paramTypes("boolean"), loader, "uhq_set");
+        }
+        if (support == null) return;
+        BudsPoseTap.readSwitchesFromProtocol();
+        xposed.hook(support).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                .intercept(chain -> true);
+        registerSettingUpdates();
+        BudsLog.w("stage=buds_settings event=installed manager=hearable support=" + describe(support));
+        if (supported == null || enabled == null || set == null) return;
+        xposed.hook(supported).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                .intercept(chain -> {
+                    syncUhq(BudsPoseTap.device());
+                    return true;
+                });
+        xposed.hook(enabled).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                .intercept(chain -> {
+                    BluetoothDevice device = BudsPoseTap.device();
+                    syncUhq(device);
+                    return uhq(device);
+                });
+        xposed.hook(set).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                .intercept(chain -> {
+                    setUhq(BudsPoseTap.device(), (Boolean) chain.getArg(0));
+                    return null;
+                });
+        BudsLog.w("stage=buds_settings event=uhq_installed manager=hearable supported="
+                + describe(supported) + " enabled=" + describe(enabled) + " set=" + describe(set));
+    }
+
+    /** The buds' 360 audio / head tracking state as the manager learns it (connection, status). */
+    private static void registerSettingUpdates() {
+        android.os.Handler handler = BudsPoseTap.handler();
+        handler.post(new Runnable() {
+            int attempts;
+
+            @Override public void run() {
+                Context context = ActivityThread.currentApplication();
+                if (context == null) {
+                    if (++attempts < 120) handler.postDelayed(this, 250);
+                    return;
+                }
+                context.registerReceiver(new android.content.BroadcastReceiver() {
+                    @Override public void onReceive(Context ctx, Intent intent) {
+                        if (!intent.hasExtra("extra_value")) return;
+                        apply(intent.getBooleanExtra("extra_value", spatial),
+                                intent.getBooleanExtra("extra_head_tracking", headTracking),
+                                "status");
+                    }
+                }, new android.content.IntentFilter(ACTION_SETTING_UPDATED), null, handler,
+                        Context.RECEIVER_NOT_EXPORTED);
+            }
+        });
+    }
+
+    /** A SET_SPATIAL_AUDIO frame the manager sent: [360 audio] or [360 audio, head tracking]. */
+    static void fromProtocol(boolean[] switches) {
+        apply(switches[0], switches.length > 1 ? switches[1] : headTracking, "protocol");
+    }
+
+    private static void setUhq(BluetoothDevice device, boolean on) {
+        Context context = ActivityThread.currentApplication();
+        if (device == null || context == null) return;
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+                .putBoolean(uhqKey(device.getAddress()), on).apply();
+        BudsLog.w("stage=buds_settings event=uhq_switch enabled=" + on);
+        sendUhq(device, on);
     }
 
     /**
@@ -148,17 +272,10 @@ final class BudsSettingsBridge {
                 });
         xposed.hook(set).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
                 .intercept(chain -> {
-                    boolean on = (Boolean) chain.getArg(0);
-                    BluetoothDevice device = (BluetoothDevice) chain.getArg(1);
-                    Context context = ActivityThread.currentApplication();
-                    if (device == null || context == null) return null;
-                    context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
-                            .putBoolean(uhqKey(device.getAddress()), on).apply();
-                    Log.w(TAG, "stage=buds_settings event=uhq_switch enabled=" + on);
-                    sendUhq(device, on);
+                    setUhq((BluetoothDevice) chain.getArg(1), (Boolean) chain.getArg(0));
                     return null;
                 });
-        Log.w(TAG, "stage=buds_settings event=uhq_installed supported=" + describe(supported)
+        BudsLog.w("stage=buds_settings event=uhq_installed supported=" + describe(supported)
                 + " enabled=" + describe(enabled) + " set=" + describe(set)
                 + " priority_guards=" + guards.size());
     }
@@ -219,7 +336,7 @@ final class BudsSettingsBridge {
                 if (accessor != null) accessor.setAccessible(true);
                 guards.add(new PriorityGuard(caller.getMethodInstance(loader), field, accessor));
             } catch (ReflectiveOperationException error) {
-                Log.e(TAG, "stage=buds_settings event=resolve_failed target=priority_guard");
+                BudsLog.e("stage=buds_settings event=resolve_failed target=priority_guard");
             }
         }
         return guards;
@@ -297,7 +414,7 @@ final class BudsSettingsBridge {
                 }
             }
         } catch (ReflectiveOperationException | RuntimeException error) {
-            Log.e(TAG, "stage=buds_settings event=uhq_allow_failed error=" + error);
+            BudsLog.e("stage=buds_settings event=uhq_allow_failed error=" + error);
         }
     }
 
@@ -393,7 +510,7 @@ final class BudsSettingsBridge {
                     .putBoolean(KEY_HEAD_TRACKING, headTracking)
                     .apply();
         }
-        Log.w(TAG, "stage=buds_settings event=switch source=" + source + " spatial=" + spatial
+        BudsLog.w("stage=buds_settings event=switch source=" + source + " spatial=" + spatial
                 + " head_tracking=" + headTracking);
         if (sentSpatial == null || sentSpatial != spatial) {
             sentSpatial = spatial;
@@ -406,7 +523,7 @@ final class BudsSettingsBridge {
             String what) {
         MethodDataList found = bridge.findMethod(FindMethod.create().matcher(matcher));
         if (found.size() != 1) {
-            Log.e(TAG, "stage=buds_settings event=lookup_failed target=" + what
+            BudsLog.e("stage=buds_settings event=lookup_failed target=" + what
                     + " matches=" + found.size());
             return null;
         }
@@ -414,7 +531,7 @@ final class BudsSettingsBridge {
         try {
             return data.getMethodInstance(loader);
         } catch (NoSuchMethodException error) {
-            Log.e(TAG, "stage=buds_settings event=resolve_failed target=" + what);
+            BudsLog.e("stage=buds_settings event=resolve_failed target=" + what);
             return null;
         }
     }
