@@ -70,6 +70,10 @@ void observe_encoder_init(const PeerParams* peer, void* codec, Read read, Enqueu
     const uint32_t rate = uhq ? 96000 : 48000;
     info("dolby_started", port::spatial().start(rate, kSamplesPerChannel), uhq);
     info("ssc_encoder_init", peer->mtu, static_cast<int>(rate));
+    // The stack's view of the link: peer EDR support and 3 Mbps EDR (off when either side lacks it
+    // or the peer is on the stack's 2 Mbps-only interop list). The controller still picks each
+    // packet's type by link quality.
+    info("ssc_link", peer->is_edr, peer->supports_3mbps);
     port::note_encoder_rate(rate);
     underlying_encoder->init(peer, codec, observe_pcm_read, observe_enqueue);
 }
