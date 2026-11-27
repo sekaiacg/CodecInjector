@@ -56,7 +56,10 @@ int ssc_rate_from_bitrate(int32_t bitrate, SscRate *rate) {
 int ssc_rate_from_header(const uint8_t *h, SscRate *rate) {
     const int i = h[3] & 0x0f;
     if (h[0] != 0xff || i > 6) return 0;
-    rate->uhq_family = h[1] != 0xee;
+    /* The family is in the rate code (bit 4: f0..f6 set, e0..e6 clear; UHQ frames keep a level in
+       bits 5..7). Byte 1 cannot tell: UHQ frames put the counter's high nibble there, which is
+       0xEE for counter values 224..239. */
+    rate->uhq_family = !(h[3] & 0x10);
     rate->code = (rate->uhq_family ? 0xe0 : 0xf0) | i;
     rate->bitrate = rate->uhq_family ? kUhq[i] : kNormal[i];
     return 1;

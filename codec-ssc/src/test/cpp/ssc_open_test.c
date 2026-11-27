@@ -57,6 +57,16 @@ int main(void) {
     assert(frame[0] == 0xff && frame[1] == 0xe0 && frame[2] == 0x01 && frame[3] == 0xe3);
     assert(ssc_open_encode(enc, silence, SSC_OPEN_FRAME, frame, 584000) == 660);
     assert(frame[2] == 0x11);
+    /* Counter 224..239 puts 0xEE in byte 1 of a UHQ frame, as in a 48 kHz frame: the decoder must
+       take the family from the rate code. */
+    void *dec = ssc_open_decoder_create(96000);
+    static float out[SSC_OPEN_FRAME * 2];
+    for (int i = 2; i < 240; i++) {
+        assert(ssc_open_encode(enc, silence, SSC_OPEN_FRAME, frame, 584000) == 660);
+        assert(ssc_open_decode(dec, frame, 660, out) == SSC_OPEN_FRAME);
+    }
+    assert(frame[1] == 0xee && frame[3] == 0xe3);
+    ssc_open_decoder_destroy(dec);
     ssc_open_destroy(enc);
     /* Frame sizes match Samsung's encoder at each step. */
     const struct { int rate, bitrate, size; double min_snr; } cases[] = {

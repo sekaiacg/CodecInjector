@@ -14,7 +14,7 @@
 
 typedef struct {
     int32_t bitrate;
-    int uhq_family; /* rate codes e0..e6 (header byte 1 = 0xEx), else f0..f6 (0xEE) */
+    int uhq_family; /* rate codes e0..e6, else f0..f6 */
     int code;       /* rate code, e.g. 0xe3 */
 } SscRate;
 

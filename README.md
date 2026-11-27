@@ -128,12 +128,14 @@ codec-aeld/               AAC-ELD for AirPods: codec plugin, FDK encoder, AU/RTP
 app/                      LSPosed entry and the native library linking the core and the codecs
 scripts/host-tests.sh     native host tests of all modules (src/test/cpp)
 hidden-api/               compile-only stubs of hidden framework APIs (not packaged)
-tools/                    on-device probes (Dolby HAL client, FDK AAC-ELD encoder)
+tools/                    probes (Dolby HAL client, FDK AAC-ELD encoder, SSC reference/trace,
+                          SSC coding-loss benchmark)
 third_party/              xz-embedded, AOSP audio effect AIDL NDK code (see third_party/README.md)
 docs/                     architecture and verification
 ```
 
-See [docs/architecture.md](docs/architecture.md) and [docs/verification.md](docs/verification.md).
+See [docs/architecture.md](docs/architecture.md), [docs/verification.md](docs/verification.md) and
+[docs/ssc-benchmark.md](docs/ssc-benchmark.md) (coding loss of the open SSC encoder).
 
 ## Acknowledgements
 
